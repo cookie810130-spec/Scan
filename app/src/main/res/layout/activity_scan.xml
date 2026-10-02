@@ -1,149 +1,221 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="#f4f6f9">
+    android:background="#f0f9ff">
 
-    <!-- 上方相機預覽區 -->
-    <androidx.camera.view.PreviewView
-        android:id="@+id/previewView"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
-
-    <!-- 下方控制與資訊面板 -->
+    <!-- 1. 掃描主介面 -->
     <LinearLayout
+        android:id="@+id/layoutScannerSection"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp"
-        android:background="#ffffff"
-        android:elevation="8dp">
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
-        <!-- 1. 每次累加數量設定列 (etQty 在這裡) -->
+        <!-- 縮小後的相機預覽區 (固定 220dp 高度，不再佔滿全螢幕) -->
+        <androidx.camera.view.PreviewView
+            android:id="@+id/previewView"
+            android:layout_width="match_parent"
+            android:layout_height="220dp"
+            android:background="#000000" />
+
+        <!-- 控制與資訊面板 (淡藍質感美化) -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="8dp">
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:background="#ffffff">
 
-            <TextView
-                android:layout_width="wrap_content"
+            <!-- 數量設定與狀態 -->
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="每次累加數量："
-                android:textStyle="bold"
-                android:textColor="#475569"
-                android:textSize="15sp" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="6dp">
 
-            <!-- 數量輸入框 (確保有這個 ID) -->
-            <EditText
-                android:id="@+id/etQty"
-                android:layout_width="80dp"
-                android:layout_height="40dp"
-                android:layout_marginStart="8dp"
-                android:background="@android:drawable/editbox_background_normal"
-                android:gravity="center"
-                android:inputType="number"
-                android:text="1"
-                android:textColor="#1e40af"
-                android:textStyle="bold"
-                android:textSize="16sp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="累加數量："
+                    android:textStyle="bold"
+                    android:textColor="#0369a1"
+                    android:textSize="14sp" />
 
+                <EditText
+                    android:id="@+id/etQty"
+                    android:layout_width="70dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="6dp"
+                    android:background="@android:drawable/editbox_background_normal"
+                    android:gravity="center"
+                    android:inputType="number"
+                    android:text="1"
+                    android:textColor="#0284c7"
+                    android:textStyle="bold"
+                    android:textSize="15sp" />
+
+                <TextView
+                    android:id="@+id/tvStatus"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="12dp"
+                    android:text="請對準條碼掃描"
+                    android:textColor="#0284c7"
+                    android:textStyle="bold"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <!-- 最後刷入資訊 -->
             <TextView
-                android:id="@+id/tvStatus"
-                android:layout_width="0dp"
+                android:id="@+id/tvLastItem"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:background="#e0f2fe"
+                android:padding="8dp"
+                android:text="最後點貨：無"
+                android:textColor="#0369a1"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <!-- 資料庫狀態與總計 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="6dp">
+
+                <TextView
+                    android:id="@+id/tvDbStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="雲端: 讀取中…"
+                    android:textSize="12sp"
+                    android:textColor="#64748b" />
+
+                <TextView
+                    android:id="@+id/tvSummary"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="end"
+                    android:text="品項：0 種 | 總量：0"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textColor="#0369a1" />
+            </LinearLayout>
+
+            <!-- 功能按鈕列 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="8dp"
+                android:gravity="center">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnScan"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="手動掃描"
+                    android:textSize="13sp"
+                    app:backgroundTint="#e0f2fe"
+                    android:textColor="#0284c7"
+                    android:layout_marginEnd="4dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnClear"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="清空"
+                    android:textSize="13sp"
+                    android:backgroundTint="#ef4444"
+                    android:layout_marginStart="2dp"
+                    android:layout_marginEnd="2dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnReport"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="檢視核對單"
+                    android:textSize="13sp"
+                    android:backgroundTint="#0284c7"
+                    android:layout_marginStart="4dp" />
+            </LinearLayout>
+
+            <!-- 已點貨清單列表 -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
                 android:layout_weight="1"
-                android:layout_marginStart="16dp"
-                android:text="請對準條碼掃描"
-                android:textColor="#16a34a"
-                android:textStyle="bold"
-                android:textSize="15sp" />
+                android:layout_marginTop="6dp"
+                android:background="#f8fafc" />
         </LinearLayout>
-
-        <!-- 2. 最後刷入品項資訊 -->
-        <TextView
-            android:id="@+id/tvLastItem"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="#e0f2fe"
-            android:padding="10dp"
-            android:text="最後點貨：無"
-            android:textColor="#0f172a"
-            android:textSize="15sp"
-            android:textStyle="bold" />
-
-        <!-- 3. 資料庫狀態與總計 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="8dp">
-
-            <TextView
-                android:id="@+id/tvDbStatus"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="雲端資料庫: 讀取中…"
-                android:textSize="13sp"
-                android:textColor="#64748b" />
-
-            <TextView
-                android:id="@+id/tvSummary"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="end"
-                android:text="累計品項：0 種 | 總量：0"
-                android:textSize="13sp"
-                android:textStyle="bold"
-                android:textColor="#1e293b" />
-        </LinearLayout>
-
-        <!-- 4. 功能按鈕列 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="10dp"
-            android:gravity="center">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnScan"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="手動觸發掃描"
-                android:layout_marginEnd="4dp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnClear"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="清空紀錄"
-                android:backgroundTint="#dc2626"
-                android:layout_marginStart="2dp"
-                android:layout_marginEnd="2dp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnReport"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="檢視核對單"
-                android:layout_marginStart="4dp" />
-        </LinearLayout>
-
-        <!-- 5. 已點貨清單列表 -->
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/recyclerView"
-            android:layout_width="match_parent"
-            android:layout_height="150dp"
-            android:layout_marginTop="8dp"
-            android:background="#ffffff" />
     </LinearLayout>
 
-</LinearLayout>
+    <!-- 2. 全螢幕核對單介面 (預設隱藏，開啟時會自動關閉相機省電) -->
+    <LinearLayout
+        android:id="@+id/layoutReportSection"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="#ffffff"
+        android:visibility="gone"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="📋 盤點點貨核對單"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="#0369a1"
+            android:gravity="center"
+            android:paddingBottom="4dp" />
+
+        <TextView
+            android:id="@+id/tvReportSummary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="總計：0 種 / 0 件"
+            android:textSize="14sp"
+            android:textColor="#64748b"
+            android:gravity="center"
+            android:paddingBottom="12dp" />
+
+        <!-- 捲動內容區 -->
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:background="#f0f9ff"
+            android:padding="12dp">
+
+            <TextView
+                android:id="@+id/tvReportContent"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="尚無點貨紀錄"
+                android:textColor="#0f172a"
+                android:textSize="15sp"
+                android:lineSpacingExtra="6dp" />
+        </ScrollView>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnBackToScan"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="返回繼續掃描"
+            android:backgroundTint="#0284c7"
+            android:textColor="#ffffff"
+            android:textSize="16sp" />
+    </LinearLayout>
+
+</FrameLayout>

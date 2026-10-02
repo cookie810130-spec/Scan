@@ -1469,10 +1469,10 @@ class ScanActivity : AppCompatActivity() {
                 val preview =
                     Preview.Builder()
                         .build()
-                        .also {
-                            it.surfaceProvider =
-                                previewView.surfaceProvider
-                        }
+                        
+                            preview.setSurfaceProvider(
+    previewView.surfaceProvider
+)
 
                 imageAnalysis =
                     ImageAnalysis.Builder()

@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
+import android.media.MediaPlayer
 import android.os.Bundle
 import android.view.Gravity
 import android.view.KeyEvent
@@ -58,6 +59,13 @@ class ScanActivity : AppCompatActivity() {
     private var lastScanTime = 0L
 
     // =========================================================
+    // 音效
+    // =========================================================
+
+    private var successPlayer: MediaPlayer? = null
+    private var failPlayer: MediaPlayer? = null
+
+    // =========================================================
     // 掃描頁 UI
     // =========================================================
 
@@ -87,7 +95,7 @@ class ScanActivity : AppCompatActivity() {
     private lateinit var btnBackToScan: MaterialButton
 
     // =========================================================
-    // 資料
+    // 商品資料
     // =========================================================
 
     private val barcodeMap =
@@ -127,6 +135,7 @@ class ScanActivity : AppCompatActivity() {
         bindViews()
         setupRecycler()
         setupButtons()
+        setupSounds()
 
         barcodeScanner =
             BarcodeScanning.getClient()
@@ -145,7 +154,7 @@ class ScanActivity : AppCompatActivity() {
     }
 
     // =========================================================
-    // 綁定 UI
+    // UI 綁定
     // =========================================================
 
     private fun bindViews() {
@@ -236,6 +245,116 @@ class ScanActivity : AppCompatActivity() {
     }
 
     // =========================================================
+    // 音效初始化
+    // =========================================================
+
+    private fun setupSounds() {
+
+        try {
+
+            successPlayer =
+                MediaPlayer.create(
+                    this,
+                    R.raw.success
+                )
+
+            failPlayer =
+                MediaPlayer.create(
+                    this,
+                    R.raw.fail
+                )
+
+        } catch (e: Exception) {
+
+            e.printStackTrace()
+
+            successPlayer = null
+            failPlayer = null
+        }
+    }
+
+    // =========================================================
+    // 成功音
+    // =========================================================
+
+    private fun playSuccessSound() {
+
+        try {
+
+            successPlayer?.let { player ->
+
+                if (player.isPlaying) {
+                    player.seekTo(0)
+                } else {
+                    player.seekTo(0)
+                    player.start()
+                }
+            }
+
+        } catch (e: Exception) {
+
+            e.printStackTrace()
+
+            // 如果播放器狀態異常，重新建立
+            try {
+
+                successPlayer?.release()
+
+                successPlayer =
+                    MediaPlayer.create(
+                        this,
+                        R.raw.success
+                    )
+
+                successPlayer?.start()
+
+            } catch (e2: Exception) {
+                e2.printStackTrace()
+            }
+        }
+    }
+
+    // =========================================================
+    // 失敗音
+    // =========================================================
+
+    private fun playFailSound() {
+
+        try {
+
+            failPlayer?.let { player ->
+
+                if (player.isPlaying) {
+                    player.seekTo(0)
+                } else {
+                    player.seekTo(0)
+                    player.start()
+                }
+            }
+
+        } catch (e: Exception) {
+
+            e.printStackTrace()
+
+            try {
+
+                failPlayer?.release()
+
+                failPlayer =
+                    MediaPlayer.create(
+                        this,
+                        R.raw.fail
+                    )
+
+                failPlayer?.start()
+
+            } catch (e2: Exception) {
+                e2.printStackTrace()
+            }
+        }
+    }
+
+    // =========================================================
     // 音量鍵
     // =========================================================
 
@@ -262,18 +381,6 @@ class ScanActivity : AppCompatActivity() {
                     event
                 )
         }
-    }
-
-    // =========================================================
-    // 音效
-    // =========================================================
-
-    private fun playSuccessSound() {
-        // 保留介面，之後可加入提示音
-    }
-
-    private fun playFailSound() {
-        // 保留介面，之後可加入錯誤提示音
     }
 
     // =========================================================
@@ -349,7 +456,7 @@ class ScanActivity : AppCompatActivity() {
     }
 
     // =========================================================
-    // 處理相機畫面
+    // ML Kit 條碼辨識
     // =========================================================
 
     private fun processImage(
@@ -404,7 +511,7 @@ class ScanActivity : AppCompatActivity() {
                 }
             }
             ?.addOnFailureListener {
-                // 掃描失敗時繼續下一張
+                // 失敗時繼續掃描下一張
             }
             ?.addOnCompleteListener {
 
@@ -435,7 +542,7 @@ class ScanActivity : AppCompatActivity() {
     }
 
     // =========================================================
-    // 掃描成功
+    // 條碼處理
     // =========================================================
 
     private fun onBarcodeDetected(
@@ -454,6 +561,7 @@ class ScanActivity : AppCompatActivity() {
 
         if (item != null) {
 
+            // ★ 成功音效
             playSuccessSound()
 
             recordItem(
@@ -470,6 +578,7 @@ class ScanActivity : AppCompatActivity() {
 
         } else {
 
+            // ★ 失敗音效
             playFailSound()
 
             tvStatus.text =
@@ -480,7 +589,7 @@ class ScanActivity : AppCompatActivity() {
     }
 
     // =========================================================
-    // 商品查找
+    // 查找商品
     // =========================================================
 
     private fun findItem(
@@ -576,7 +685,7 @@ class ScanActivity : AppCompatActivity() {
     }
 
     // =========================================================
-    // 更新清單
+    // 更新掃描清單
     // =========================================================
 
     private fun refreshList() {
@@ -599,7 +708,7 @@ class ScanActivity : AppCompatActivity() {
     }
 
     // =========================================================
-    // 清空
+    // 清空紀錄
     // =========================================================
 
     private fun clearRecords() {
@@ -918,7 +1027,7 @@ class ScanActivity : AppCompatActivity() {
                                 ] = info
                             }
 
-                            // 去前導 0 的自編碼
+                            // 去掉前導 0
                             val normalizedCustomCode =
                                 customCode
                                     .trimStart('0')
@@ -1091,7 +1200,7 @@ class ScanActivity : AppCompatActivity() {
     }
 
     // =========================================================
-    // 顯示核對頁
+    // 核對頁
     // =========================================================
 
     private fun showReportPage() {
@@ -1126,7 +1235,6 @@ class ScanActivity : AppCompatActivity() {
 
         tvReportContent.removeAllViews()
 
-        // 表頭
         addReportRow(
             customCode = "自編碼",
             name = "品名",
@@ -1134,7 +1242,6 @@ class ScanActivity : AppCompatActivity() {
             isHeader = true
         )
 
-        // 商品
         list.forEach { rec ->
 
             addReportRow(
@@ -1153,7 +1260,7 @@ class ScanActivity : AppCompatActivity() {
     }
 
     // =========================================================
-    // 核對清單單列
+    // 核對清單列
     // =========================================================
 
     private fun addReportRow(
@@ -1180,6 +1287,7 @@ class ScanActivity : AppCompatActivity() {
                 )
 
                 if (isHeader) {
+
                     setBackgroundColor(
                         Color.rgb(
                             232,
@@ -1208,6 +1316,7 @@ class ScanActivity : AppCompatActivity() {
                 )
 
                 if (isHeader) {
+
                     setTypeface(
                         null,
                         Typeface.BOLD
@@ -1249,6 +1358,7 @@ class ScanActivity : AppCompatActivity() {
                 )
 
                 if (isHeader) {
+
                     setTypeface(
                         null,
                         Typeface.BOLD
@@ -1258,7 +1368,6 @@ class ScanActivity : AppCompatActivity() {
                 gravity =
                     Gravity.CENTER_VERTICAL
 
-                // 品名可以自動換行
                 maxLines = 5
 
                 breakStrategy =
@@ -1292,6 +1401,7 @@ class ScanActivity : AppCompatActivity() {
                 )
 
                 if (isHeader) {
+
                     setTypeface(
                         null,
                         Typeface.BOLD
@@ -1351,7 +1461,7 @@ class ScanActivity : AppCompatActivity() {
     }
 
     // =========================================================
-    // 回到掃描頁
+    // 回掃描頁
     // =========================================================
 
     private fun showScannerPage() {
@@ -1443,7 +1553,7 @@ class ScanActivity : AppCompatActivity() {
     }
 
     // =========================================================
-    // 啟動 CameraX
+    // CameraX
     // =========================================================
 
     private fun startCamera() {
@@ -1469,10 +1579,11 @@ class ScanActivity : AppCompatActivity() {
                 val preview =
                     Preview.Builder()
                         .build()
-                        
-                            preview.setSurfaceProvider(
-    previewView.surfaceProvider
-)
+
+                // ★ 修正 CameraX surfaceProvider 編譯問題
+                preview.setSurfaceProvider(
+                    previewView.surfaceProvider
+                )
 
                 imageAnalysis =
                     ImageAnalysis.Builder()
@@ -1530,7 +1641,7 @@ class ScanActivity : AppCompatActivity() {
     }
 
     // =========================================================
-    // Activity 銷毀
+    // 銷毀
     // =========================================================
 
     override fun onDestroy() {
@@ -1542,6 +1653,19 @@ class ScanActivity : AppCompatActivity() {
             barcodeScanner?.close()
         } catch (_: Exception) {
         }
+
+        try {
+            successPlayer?.release()
+        } catch (_: Exception) {
+        }
+
+        try {
+            failPlayer?.release()
+        } catch (_: Exception) {
+        }
+
+        successPlayer = null
+        failPlayer = null
 
         client.dispatcher.cancelAll()
 

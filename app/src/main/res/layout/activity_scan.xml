@@ -18,7 +18,7 @@
         android:orientation="vertical"
         android:background="#F3F9FD">
 
-        <!-- 標題列 -->
+        <!-- 標題 -->
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -48,12 +48,11 @@
 
         </LinearLayout>
 
-
         <!-- ================================================= -->
-        <!-- 小型相機區 -->
+        <!-- 相機 -->
         <!-- ================================================= -->
 
-        <androidx.cardview.widget.CardView
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="200dp"
             android:layout_marginStart="14dp"
@@ -74,8 +73,6 @@
                     android:background="#102A43"
                     app:implementationMode="compatible"
                     app:scaleType="fillCenter" />
-
-                <!-- 掃描框 -->
 
                 <View
                     android:layout_width="220dp"
@@ -99,11 +96,10 @@
 
             </FrameLayout>
 
-        </androidx.cardview.widget.CardView>
-
+        </com.google.android.material.card.MaterialCardView>
 
         <!-- ================================================= -->
-        <!-- 狀態資訊 -->
+        <!-- 狀態 -->
         <!-- ================================================= -->
 
         <LinearLayout
@@ -136,12 +132,11 @@
 
         </LinearLayout>
 
-
         <!-- ================================================= -->
         <!-- 最後掃描 -->
         <!-- ================================================= -->
 
-        <androidx.cardview.widget.CardView
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginStart="14dp"
@@ -167,11 +162,10 @@
                 android:textStyle="bold"
                 android:background="#FFFFFF" />
 
-        </androidx.cardview.widget.CardView>
-
+        </com.google.android.material.card.MaterialCardView>
 
         <!-- ================================================= -->
-        <!-- 數量設定 -->
+        <!-- 數量 -->
         <!-- ================================================= -->
 
         <LinearLayout
@@ -213,9 +207,8 @@
 
         </LinearLayout>
 
-
         <!-- ================================================= -->
-        <!-- 功能按鈕 -->
+        <!-- 按鈕 -->
         <!-- ================================================= -->
 
         <LinearLayout
@@ -267,9 +260,8 @@
 
         </LinearLayout>
 
-
         <!-- ================================================= -->
-        <!-- 已掃描清單 -->
+        <!-- 已掃描 -->
         <!-- ================================================= -->
 
         <TextView
@@ -297,7 +289,6 @@
 
     </LinearLayout>
 
-
     <!-- ===================================================== -->
     <!-- 核對頁 -->
     <!-- ===================================================== -->
@@ -310,7 +301,7 @@
         android:background="#F3F9FD"
         android:visibility="gone">
 
-        <!-- 核對頁標題 -->
+        <!-- 標題 -->
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -338,10 +329,9 @@
 
         </LinearLayout>
 
+        <!-- 統計 -->
 
-        <!-- 統計卡 -->
-
-        <androidx.cardview.widget.CardView
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_margin="14dp"
@@ -360,10 +350,11 @@
                 android:textStyle="bold"
                 android:background="#FFFFFF" />
 
-        </androidx.cardview.widget.CardView>
+        </com.google.android.material.card.MaterialCardView>
 
-
-        <!-- 核對內容 -->
+        <!-- ================================================= -->
+        <!-- 核對表格 -->
+        <!-- ================================================= -->
 
         <ScrollView
             android:layout_width="match_parent"
@@ -374,18 +365,15 @@
             android:background="#FFFFFF"
             android:fillViewport="true">
 
-            <TextView
+            <LinearLayout
                 android:id="@+id/tvReportContent"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:padding="18dp"
-                android:text="尚無點貨紀錄"
-                android:textColor="#1E293B"
-                android:textSize="15sp"
-                android:lineSpacingExtra="7dp" />
+                android:orientation="vertical"
+                android:padding="8dp"
+                android:background="#FFFFFF" />
 
         </ScrollView>
-
 
         <!-- 返回 -->
 

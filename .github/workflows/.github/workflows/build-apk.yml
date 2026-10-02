@@ -1,0 +1,7 @@
+cd InventoryScanner
+git init
+git add .
+git commit -m "門市點貨系統 - 含 GitHub Actions 自動建 APK"
+git branch -M main
+git remote add origin https://github.com/你的帳號/InventoryScanner.git
+git push -u origin main

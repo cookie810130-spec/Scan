@@ -2,10 +2,14 @@ package com.store.inventoryscanner
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.Typeface
 import android.os.Bundle
+import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -59,6 +63,7 @@ class ScanActivity : AppCompatActivity() {
 
     private lateinit var previewView: PreviewView
     private lateinit var etQty: EditText
+
     private lateinit var btnScan: MaterialButton
     private lateinit var btnClear: MaterialButton
     private lateinit var btnReport: MaterialButton
@@ -67,6 +72,7 @@ class ScanActivity : AppCompatActivity() {
     private lateinit var tvLastItem: TextView
     private lateinit var tvDbStatus: TextView
     private lateinit var tvSummary: TextView
+
     private lateinit var recyclerView: RecyclerView
 
     // =========================================================
@@ -75,16 +81,20 @@ class ScanActivity : AppCompatActivity() {
 
     private lateinit var layoutScannerSection: View
     private lateinit var layoutReportSection: View
+
     private lateinit var tvReportSummary: TextView
-    private lateinit var tvReportContent: TextView
+    private lateinit var tvReportContent: LinearLayout
     private lateinit var btnBackToScan: MaterialButton
 
     // =========================================================
     // 資料
     // =========================================================
 
-    private val barcodeMap = mutableMapOf<String, ItemInfo>()
-    private val scannedRecords = linkedMapOf<String, ScanRecord>()
+    private val barcodeMap =
+        mutableMapOf<String, ItemInfo>()
+
+    private val scannedRecords =
+        linkedMapOf<String, ScanRecord>()
 
     private lateinit var adapter: ScanAdapter
 
@@ -92,10 +102,11 @@ class ScanActivity : AppCompatActivity() {
     // 網路
     // =========================================================
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .build()
+    private val client =
+        OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .build()
 
     private val GAS_WEB_APP_URL =
         "https://script.google.com/macros/s/AKfycbxD84499eLT9602gFVbCsKHrFAUgGYvOayHH9uNRc79HYD4sAQZYCuOA-j2KypNnLx1/exec"
@@ -117,7 +128,8 @@ class ScanActivity : AppCompatActivity() {
         setupRecycler()
         setupButtons()
 
-        barcodeScanner = BarcodeScanning.getClient()
+        barcodeScanner =
+            BarcodeScanning.getClient()
 
         if (hasCameraPermission()) {
             startCamera()
@@ -138,29 +150,50 @@ class ScanActivity : AppCompatActivity() {
 
     private fun bindViews() {
 
-        // 掃描頁
-        previewView = findViewById(R.id.previewView)
-        etQty = findViewById(R.id.etQty)
+        previewView =
+            findViewById(R.id.previewView)
 
-        btnScan = findViewById(R.id.btnScan)
-        btnClear = findViewById(R.id.btnClear)
-        btnReport = findViewById(R.id.btnReport)
+        etQty =
+            findViewById(R.id.etQty)
 
-        tvStatus = findViewById(R.id.tvStatus)
-        tvLastItem = findViewById(R.id.tvLastItem)
-        tvDbStatus = findViewById(R.id.tvDbStatus)
-        tvSummary = findViewById(R.id.tvSummary)
+        btnScan =
+            findViewById(R.id.btnScan)
 
-        recyclerView = findViewById(R.id.recyclerView)
+        btnClear =
+            findViewById(R.id.btnClear)
 
-        // 核對頁
-        layoutScannerSection = findViewById(R.id.layoutScannerSection)
-        layoutReportSection = findViewById(R.id.layoutReportSection)
+        btnReport =
+            findViewById(R.id.btnReport)
 
-        tvReportSummary = findViewById(R.id.tvReportSummary)
-        tvReportContent = findViewById(R.id.tvReportContent)
+        tvStatus =
+            findViewById(R.id.tvStatus)
 
-        btnBackToScan = findViewById(R.id.btnBackToScan)
+        tvLastItem =
+            findViewById(R.id.tvLastItem)
+
+        tvDbStatus =
+            findViewById(R.id.tvDbStatus)
+
+        tvSummary =
+            findViewById(R.id.tvSummary)
+
+        recyclerView =
+            findViewById(R.id.recyclerView)
+
+        layoutScannerSection =
+            findViewById(R.id.layoutScannerSection)
+
+        layoutReportSection =
+            findViewById(R.id.layoutReportSection)
+
+        tvReportSummary =
+            findViewById(R.id.tvReportSummary)
+
+        tvReportContent =
+            findViewById(R.id.tvReportContent)
+
+        btnBackToScan =
+            findViewById(R.id.btnBackToScan)
     }
 
     // =========================================================
@@ -169,12 +202,14 @@ class ScanActivity : AppCompatActivity() {
 
     private fun setupRecycler() {
 
-        adapter = ScanAdapter(emptyList())
+        adapter =
+            ScanAdapter(emptyList())
 
         recyclerView.layoutManager =
             LinearLayoutManager(this)
 
-        recyclerView.adapter = adapter
+        recyclerView.adapter =
+            adapter
     }
 
     // =========================================================
@@ -221,7 +256,11 @@ class ScanActivity : AppCompatActivity() {
                 true
             }
 
-            else -> super.onKeyDown(keyCode, event)
+            else ->
+                super.onKeyDown(
+                    keyCode,
+                    event
+                )
         }
     }
 
@@ -230,13 +269,11 @@ class ScanActivity : AppCompatActivity() {
     // =========================================================
 
     private fun playSuccessSound() {
-        // 保留原本介面。
-        // 之後可以在這裡加入 success.mp3 播放。
+        // 保留介面
     }
 
     private fun playFailSound() {
-        // 保留原本介面。
-        // 之後可以在這裡加入 fail.mp3 播放。
+        // 保留介面
     }
 
     // =========================================================
@@ -247,9 +284,11 @@ class ScanActivity : AppCompatActivity() {
 
         camera?.let {
 
-            isTorchOn = !isTorchOn
+            isTorchOn =
+                !isTorchOn
 
-            it.cameraControl.enableTorch(isTorchOn)
+            it.cameraControl
+                .enableTorch(isTorchOn)
 
             tvStatus.text =
                 if (isTorchOn) {
@@ -266,7 +305,10 @@ class ScanActivity : AppCompatActivity() {
 
     private fun triggerScan() {
 
-        if (layoutReportSection.visibility == View.VISIBLE) {
+        if (
+            layoutReportSection.visibility ==
+            View.VISIBLE
+        ) {
             return
         }
 
@@ -274,14 +316,20 @@ class ScanActivity : AppCompatActivity() {
             return
         }
 
-        val now = System.currentTimeMillis()
+        val now =
+            System.currentTimeMillis()
 
-        if (now - lastScanTime < 800) {
+        if (
+            now - lastScanTime < 800
+        ) {
             return
         }
 
         if (imageAnalysis == null) {
-            tvStatus.text = "相機尚未準備完成"
+
+            tvStatus.text =
+                "相機尚未準備完成"
+
             return
         }
 
@@ -289,7 +337,8 @@ class ScanActivity : AppCompatActivity() {
         isProcessingFrame = false
         lastScanTime = now
 
-        tvStatus.text = "正在尋找條碼..."
+        tvStatus.text =
+            "正在尋找條碼..."
 
         imageAnalysis?.setAnalyzer(
             ContextCompat.getMainExecutor(this)
@@ -303,7 +352,9 @@ class ScanActivity : AppCompatActivity() {
     // 處理相機畫面
     // =========================================================
 
-    private fun processImage(imageProxy: ImageProxy) {
+    private fun processImage(
+        imageProxy: ImageProxy
+    ) {
 
         if (!isScanning) {
             imageProxy.close()
@@ -315,7 +366,8 @@ class ScanActivity : AppCompatActivity() {
             return
         }
 
-        val mediaImage = imageProxy.image
+        val mediaImage =
+            imageProxy.image
 
         if (mediaImage == null) {
             imageProxy.close()
@@ -324,10 +376,11 @@ class ScanActivity : AppCompatActivity() {
 
         isProcessingFrame = true
 
-        val inputImage = InputImage.fromMediaImage(
-            mediaImage,
-            imageProxy.imageInfo.rotationDegrees
-        )
+        val inputImage =
+            InputImage.fromMediaImage(
+                mediaImage,
+                imageProxy.imageInfo.rotationDegrees
+            )
 
         barcodeScanner
             ?.process(inputImage)
@@ -337,9 +390,11 @@ class ScanActivity : AppCompatActivity() {
                     return@addOnSuccessListener
                 }
 
-                val barcode = barcodes.firstOrNull()
+                val barcode =
+                    barcodes.firstOrNull()
 
-                val code = barcode?.rawValue
+                val code =
+                    barcode?.rawValue
 
                 if (!code.isNullOrBlank()) {
 
@@ -349,17 +404,20 @@ class ScanActivity : AppCompatActivity() {
                 }
             }
             ?.addOnFailureListener {
-
-                // 單一畫面辨識失敗不停止掃描。
-                // 繼續等待下一張影像。
+                // 繼續掃描下一張影像
             }
             ?.addOnCompleteListener {
 
-                isProcessingFrame = false
+                isProcessingFrame =
+                    false
+
                 imageProxy.close()
             }
             ?: run {
-                isProcessingFrame = false
+
+                isProcessingFrame =
+                    false
+
                 imageProxy.close()
             }
     }
@@ -380,12 +438,16 @@ class ScanActivity : AppCompatActivity() {
     // 掃描成功
     // =========================================================
 
-    private fun onBarcodeDetected(code: String) {
+    private fun onBarcodeDetected(
+        code: String
+    ) {
 
-        val item = barcodeMap[code]
+        val item =
+            barcodeMap[code]
 
         val addQty =
-            etQty.text.toString()
+            etQty.text
+                .toString()
                 .toIntOrNull()
                 ?.coerceAtLeast(1)
                 ?: 1
@@ -434,10 +496,14 @@ class ScanActivity : AppCompatActivity() {
                 Locale.TAIWAN
             ).format(Date())
 
-        if (scannedRecords.containsKey(cCode)) {
+        if (
+            scannedRecords.containsKey(cCode)
+        ) {
 
             scannedRecords[cCode]!!.qty += qty
-            scannedRecords[cCode]!!.lastTime = nowTime
+
+            scannedRecords[cCode]!!
+                .lastTime = nowTime
 
         } else {
 
@@ -455,7 +521,10 @@ class ScanActivity : AppCompatActivity() {
             scannedRecords[cCode]!!
 
         tvLastItem.text =
-            "最後點貨\n${rec.name}\n自編碼：${rec.customCode}　累計：${rec.qty} 件"
+            "最後點貨\n" +
+            "${rec.name}\n" +
+            "自編碼：${rec.customCode}　" +
+            "累計：${rec.qty} 件"
 
         refreshList()
     }
@@ -468,12 +537,16 @@ class ScanActivity : AppCompatActivity() {
 
         val list =
             scannedRecords.values
-                .sortedBy { it.customCode }
+                .sortedBy {
+                    it.customCode
+                }
 
         adapter.updateData(list)
 
         val totalQty =
-            list.sumOf { it.qty }
+            list.sumOf {
+                it.qty
+            }
 
         tvSummary.text =
             "品項 ${list.size} 種　｜　總數 $totalQty 件"
@@ -493,7 +566,9 @@ class ScanActivity : AppCompatActivity() {
                 "確定要清空目前所有點貨紀錄嗎？"
             )
 
-            .setPositiveButton("確定清空") { _, _ ->
+            .setPositiveButton(
+                "確定清空"
+            ) { _, _ ->
 
                 scannedRecords.clear()
 
@@ -527,7 +602,8 @@ class ScanActivity : AppCompatActivity() {
         val inputCustom =
             EditText(this).apply {
 
-                hint = "自編碼，例如：000123"
+                hint =
+                    "自編碼，例如：000123"
 
                 setText(
                     if (
@@ -535,7 +611,10 @@ class ScanActivity : AppCompatActivity() {
                             Regex("\\d+")
                         )
                     ) {
-                        rawBarcode.padStart(6, '0')
+                        rawBarcode.padStart(
+                            6,
+                            '0'
+                        )
                     } else {
                         rawBarcode
                     }
@@ -545,14 +624,15 @@ class ScanActivity : AppCompatActivity() {
         val inputName =
             EditText(this).apply {
 
-                hint = "商品名稱"
+                hint =
+                    "商品名稱"
             }
 
         val layout =
-            android.widget.LinearLayout(this).apply {
+            LinearLayout(this).apply {
 
                 orientation =
-                    android.widget.LinearLayout.VERTICAL
+                    LinearLayout.VERTICAL
 
                 setPadding(
                     48,
@@ -579,7 +659,6 @@ class ScanActivity : AppCompatActivity() {
                 )
 
                 addView(inputCustom)
-
                 addView(inputName)
             }
 
@@ -593,8 +672,9 @@ class ScanActivity : AppCompatActivity() {
 
             .setView(layout)
 
-            .setPositiveButton("建立並點貨") {
-                    _, _ ->
+            .setPositiveButton(
+                "建立並點貨"
+            ) { _, _ ->
 
                 var customCode =
                     inputCustom.text
@@ -705,7 +785,8 @@ class ScanActivity : AppCompatActivity() {
                         ) {
 
                             val obj =
-                                jsonArray.getJSONObject(i)
+                                jsonArray
+                                    .getJSONObject(i)
 
                             val name =
                                 obj.optString(
@@ -722,11 +803,14 @@ class ScanActivity : AppCompatActivity() {
                                 ).trim()
 
                             if (
-                                customCode.endsWith(".0")
+                                customCode.endsWith(
+                                    ".0"
+                                )
                             ) {
 
                                 customCode =
-                                    customCode.dropLast(2)
+                                    customCode
+                                        .dropLast(2)
                             }
 
                             if (
@@ -753,7 +837,6 @@ class ScanActivity : AppCompatActivity() {
                                     ignoreCase = true
                                 )
                             ) {
-
                                 intlCode = ""
                             }
 
@@ -790,7 +873,9 @@ class ScanActivity : AppCompatActivity() {
                             val normalizedCustomCode =
                                 customCode
                                     .trimStart('0')
-                                    .ifEmpty { "0" }
+                                    .ifEmpty {
+                                        "0"
+                                    }
 
                             barcodeMap[
                                 normalizedCustomCode
@@ -864,8 +949,7 @@ class ScanActivity : AppCompatActivity() {
                     }
 
                 val body =
-                    json
-                        .toString()
+                    json.toString()
                         .toRequestBody(
                             "application/json; charset=utf-8"
                                 .toMediaType()
@@ -900,7 +984,9 @@ class ScanActivity : AppCompatActivity() {
                     customCode
                 ] = info
 
-                if (intlCode.isNotEmpty()) {
+                if (
+                    intlCode.isNotEmpty()
+                ) {
 
                     barcodeMap[
                         intlCode
@@ -910,7 +996,9 @@ class ScanActivity : AppCompatActivity() {
                 val normalizedCustomCode =
                     customCode
                         .trimStart('0')
-                        .ifEmpty { "0" }
+                        .ifEmpty {
+                            "0"
+                        }
 
                 barcodeMap[
                     normalizedCustomCode
@@ -959,326 +1047,4 @@ class ScanActivity : AppCompatActivity() {
 
     private fun showReportPage() {
 
-        if (scannedRecords.isEmpty()) {
-
-            Toast.makeText(
-                this,
-                "目前沒有點貨紀錄",
-                Toast.LENGTH_SHORT
-            ).show()
-
-            return
-        }
-
-        // ★ 最重要：
-        // 進入核對頁之前完全停止掃描並關閉 CameraX
-        stopScanning()
-        stopCamera()
-
-        val list =
-            scannedRecords.values
-                .sortedBy { it.customCode }
-
-        val totalQty =
-            list.sumOf { it.qty }
-
-        tvReportSummary.text =
-            "本次盤點　${list.size} 種商品　｜　$totalQty 件"
-
-        val sb =
-            StringBuilder()
-
-        sb.append(
-            "盤點時間："
-        )
-
-        sb.append(
-            SimpleDateFormat(
-                "yyyy/MM/dd HH:mm",
-                Locale.TAIWAN
-            ).format(Date())
-        )
-
-        sb.append("\n\n")
-
-        list.forEachIndexed { index, rec ->
-
-            sb.append(
-                "${index + 1}. "
-            )
-
-            sb.append(
-                rec.name
-            )
-
-            sb.append("\n")
-
-            sb.append(
-                "    自編碼："
-            )
-
-            sb.append(
-                rec.customCode
-            )
-
-            sb.append("\n")
-
-            if (rec.intlCode.isNotEmpty()) {
-
-                sb.append(
-                    "    國際條碼："
-                )
-
-                sb.append(
-                    rec.intlCode
-                )
-
-                sb.append("\n")
-            }
-
-            sb.append(
-                "    數量："
-            )
-
-            sb.append(
-                rec.qty
-            )
-
-            sb.append(" 件")
-
-            sb.append("\n")
-
-            sb.append(
-                "    最後掃描："
-            )
-
-            sb.append(
-                rec.lastTime
-            )
-
-            sb.append("\n")
-
-            sb.append(
-                "────────────────────"
-            )
-
-            sb.append("\n\n")
-        }
-
-        sb.append(
-            "合計：${list.size} 種商品 / $totalQty 件"
-        )
-
-        tvReportContent.text =
-            sb.toString()
-
-        layoutScannerSection.visibility =
-            View.GONE
-
-        layoutReportSection.visibility =
-            View.VISIBLE
-    }
-
-    // =========================================================
-    // 返回掃描頁
-    // =========================================================
-
-    private fun showScannerPage() {
-
-        layoutReportSection.visibility =
-            View.GONE
-
-        layoutScannerSection.visibility =
-            View.VISIBLE
-
-        tvStatus.text =
-            "相機啟動中..."
-
-        // 返回時重新啟動 CameraX
-        if (hasCameraPermission()) {
-
-            startCamera()
-
-        } else {
-
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(
-                    Manifest.permission.CAMERA
-                ),
-                REQUEST_CAMERA
-            )
-        }
-    }
-
-    // =========================================================
-    // 關閉相機
-    // =========================================================
-
-    private fun stopCamera() {
-
-        stopScanning()
-
-        isTorchOn = false
-
-        camera?.cameraControl
-            ?.enableTorch(false)
-
-        camera = null
-
-        imageAnalysis?.clearAnalyzer()
-
-        imageAnalysis = null
-
-        cameraProvider?.unbindAll()
-    }
-
-    // =========================================================
-    // 相機權限
-    // =========================================================
-
-    private fun hasCameraPermission(): Boolean {
-
-        return ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.CAMERA
-        ) == PackageManager.PERMISSION_GRANTED
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-
-        super.onRequestPermissionsResult(
-            requestCode,
-            permissions,
-            grantResults
-        )
-
-        if (
-            requestCode == REQUEST_CAMERA &&
-            grantResults.isNotEmpty() &&
-            grantResults[0] ==
-            PackageManager.PERMISSION_GRANTED
-        ) {
-
-            startCamera()
-
-        } else {
-
-            Toast.makeText(
-                this,
-                "需要相機權限才能掃描",
-                Toast.LENGTH_LONG
-            ).show()
-        }
-    }
-
-    // =========================================================
-    // 啟動相機
-    // =========================================================
-
-    private fun startCamera() {
-
-        if (!hasCameraPermission()) {
-            return
-        }
-
-        val future =
-            ProcessCameraProvider
-                .getInstance(this)
-
-        future.addListener({
-
-            cameraProvider =
-                future.get()
-
-            val preview =
-                Preview.Builder()
-                    .build()
-                    .also {
-
-                        it.setSurfaceProvider(
-                            previewView.surfaceProvider
-                        )
-                    }
-
-            imageAnalysis =
-                ImageAnalysis.Builder()
-
-                    .setBackpressureStrategy(
-                        ImageAnalysis
-                            .STRATEGY_KEEP_ONLY_LATEST
-                    )
-
-                    .build()
-
-            try {
-
-                cameraProvider?.unbindAll()
-
-                camera =
-                    cameraProvider?.bindToLifecycle(
-
-                        this,
-
-                        CameraSelector
-                            .DEFAULT_BACK_CAMERA,
-
-                        preview,
-
-                        imageAnalysis
-                    )
-
-                tvStatus.text =
-                    "請按「開始掃描」"
-
-            } catch (e: Exception) {
-
-                e.printStackTrace()
-
-                tvStatus.text =
-                    "相機啟動失敗"
-            }
-
-        }, ContextCompat.getMainExecutor(this))
-    }
-
-    // =========================================================
-    // 返回鍵
-    // =========================================================
-
-    @Deprecated("Deprecated in Android API")
-    override fun onBackPressed() {
-
-        if (
-            layoutReportSection.visibility ==
-            View.VISIBLE
-        ) {
-
-            showScannerPage()
-
-        } else {
-
-            super.onBackPressed()
-        }
-    }
-
-    // =========================================================
-    // 銷毀
-    // =========================================================
-
-    override fun onDestroy() {
-
-        stopCamera()
-
-        barcodeScanner?.close()
-        barcodeScanner = null
-
-        client.dispatcher.cancelAll()
-
-        super.onDestroy()
-    }
-}
+        if (scannedRecords

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<resources>
+
+    <style
+        name="Theme.InventoryScanner"
+        parent="Theme.Material3.DayNight.NoActionBar">
+
+        <!-- 淡藍色主題 -->
+
+        <item name="colorPrimary">#0284C7</item>
+        <item name="colorPrimaryContainer">#BAE6FD</item>
+
+        <item name="colorSecondary">#38BDF8</item>
+        <item name="colorSecondaryContainer">#E0F2FE</item>
+
+        <item name="colorTertiary">#0EA5E9</item>
+
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">#DDF3FF</item>
+
+        <item name="android:navigationBarColor">#F3F9FD</item>
+
+        <item name="android:windowActionModeOverlay">true</item>
+
+        <item name="android:fontFamily">sans</item>
+
+    </style>
+
+</resources>

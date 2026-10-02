@@ -99,7 +99,7 @@ class ScanActivity : AppCompatActivity() {
     private lateinit var adapter: ScanAdapter
 
     // =========================================================
-    // 網路
+    // Google Apps Script
     // =========================================================
 
     private val client =
@@ -269,11 +269,11 @@ class ScanActivity : AppCompatActivity() {
     // =========================================================
 
     private fun playSuccessSound() {
-        // 保留介面
+        // 保留介面，之後可加入提示音
     }
 
     private fun playFailSound() {
-        // 保留介面
+        // 保留介面，之後可加入錯誤提示音
     }
 
     // =========================================================
@@ -404,7 +404,7 @@ class ScanActivity : AppCompatActivity() {
                 }
             }
             ?.addOnFailureListener {
-                // 繼續掃描下一張影像
+                // 掃描失敗時繼續下一張
             }
             ?.addOnCompleteListener {
 
@@ -443,7 +443,7 @@ class ScanActivity : AppCompatActivity() {
     ) {
 
         val item =
-            barcodeMap[code]
+            findItem(code)
 
         val addQty =
             etQty.text
@@ -477,6 +477,52 @@ class ScanActivity : AppCompatActivity() {
 
             showCreateItemDialog(code)
         }
+    }
+
+    // =========================================================
+    // 商品查找
+    // =========================================================
+
+    private fun findItem(
+        rawCode: String
+    ): ItemInfo? {
+
+        val code =
+            rawCode.trim()
+
+        barcodeMap[code]?.let {
+            return it
+        }
+
+        if (
+            code.matches(
+                Regex("\\d+")
+            )
+        ) {
+
+            val normalized =
+                code
+                    .trimStart('0')
+                    .ifEmpty {
+                        "0"
+                    }
+
+            barcodeMap[normalized]?.let {
+                return it
+            }
+
+            val padded =
+                code.padStart(
+                    6,
+                    '0'
+                )
+
+            barcodeMap[padded]?.let {
+                return it
+            }
+        }
+
+        return null
     }
 
     // =========================================================
@@ -857,10 +903,12 @@ class ScanActivity : AppCompatActivity() {
                                     name
                                 )
 
+                            // 完整自編碼
                             barcodeMap[
                                 customCode
                             ] = info
 
+                            // 國際條碼
                             if (
                                 intlCode.isNotEmpty()
                             ) {
@@ -870,6 +918,7 @@ class ScanActivity : AppCompatActivity() {
                                 ] = info
                             }
 
+                            // 去前導 0 的自編碼
                             val normalizedCustomCode =
                                 customCode
                                     .trimStart('0')
@@ -1047,4 +1096,455 @@ class ScanActivity : AppCompatActivity() {
 
     private fun showReportPage() {
 
-        if (scannedRecords
+        if (scannedRecords.isEmpty()) {
+
+            Toast.makeText(
+                this,
+                "目前沒有點貨紀錄",
+                Toast.LENGTH_SHORT
+            ).show()
+
+            return
+        }
+
+        stopScanning()
+        stopCamera()
+
+        val list =
+            scannedRecords.values
+                .sortedBy {
+                    it.customCode
+                }
+
+        val totalQty =
+            list.sumOf {
+                it.qty
+            }
+
+        tvReportSummary.text =
+            "本次盤點　${list.size} 種商品　｜　$totalQty 件"
+
+        tvReportContent.removeAllViews()
+
+        // 表頭
+        addReportRow(
+            customCode = "自編碼",
+            name = "品名",
+            qty = "數量",
+            isHeader = true
+        )
+
+        // 商品
+        list.forEach { rec ->
+
+            addReportRow(
+                customCode = rec.customCode,
+                name = rec.name,
+                qty = rec.qty.toString(),
+                isHeader = false
+            )
+        }
+
+        layoutScannerSection.visibility =
+            View.GONE
+
+        layoutReportSection.visibility =
+            View.VISIBLE
+    }
+
+    // =========================================================
+    // 核對清單單列
+    // =========================================================
+
+    private fun addReportRow(
+        customCode: String,
+        name: String,
+        qty: String,
+        isHeader: Boolean
+    ) {
+
+        val row =
+            LinearLayout(this).apply {
+
+                orientation =
+                    LinearLayout.HORIZONTAL
+
+                gravity =
+                    Gravity.CENTER_VERTICAL
+
+                setPadding(
+                    dp(8),
+                    dp(8),
+                    dp(8),
+                    dp(8)
+                )
+
+                if (isHeader) {
+                    setBackgroundColor(
+                        Color.rgb(
+                            232,
+                            240,
+                            254
+                        )
+                    )
+                }
+            }
+
+        val codeView =
+            TextView(this).apply {
+
+                text =
+                    customCode
+
+                textSize =
+                    if (isHeader) 16f else 17f
+
+                setTextColor(
+                    Color.rgb(
+                        40,
+                        40,
+                        40
+                    )
+                )
+
+                if (isHeader) {
+                    setTypeface(
+                        null,
+                        Typeface.BOLD
+                    )
+                }
+
+                gravity =
+                    Gravity.CENTER_VERTICAL
+
+                maxLines = 1
+
+                ellipsize =
+                    android.text.TextUtils.TruncateAt.END
+            }
+
+        row.addView(
+            codeView,
+            LinearLayout.LayoutParams(
+                dp(82),
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+
+        val nameView =
+            TextView(this).apply {
+
+                text =
+                    name
+
+                textSize =
+                    if (isHeader) 16f else 17f
+
+                setTextColor(
+                    Color.rgb(
+                        40,
+                        40,
+                        40
+                    )
+                )
+
+                if (isHeader) {
+                    setTypeface(
+                        null,
+                        Typeface.BOLD
+                    )
+                }
+
+                gravity =
+                    Gravity.CENTER_VERTICAL
+
+                // 品名可以自動換行
+                maxLines = 5
+
+                breakStrategy =
+                    android.text.Layout.BREAK_STRATEGY_HIGH_QUALITY
+            }
+
+        row.addView(
+            nameView,
+            LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+            )
+        )
+
+        val qtyView =
+            TextView(this).apply {
+
+                text =
+                    qty
+
+                textSize =
+                    if (isHeader) 16f else 18f
+
+                setTextColor(
+                    Color.rgb(
+                        20,
+                        80,
+                        160
+                    )
+                )
+
+                if (isHeader) {
+                    setTypeface(
+                        null,
+                        Typeface.BOLD
+                    )
+                }
+
+                gravity =
+                    Gravity.CENTER
+            }
+
+        row.addView(
+            qtyView,
+            LinearLayout.LayoutParams(
+                dp(52),
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+
+        tvReportContent.addView(row)
+
+        if (!isHeader) {
+
+            val divider =
+                View(this).apply {
+
+                    setBackgroundColor(
+                        Color.rgb(
+                            225,
+                            225,
+                            225
+                        )
+                    )
+                }
+
+            tvReportContent.addView(
+                divider,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(1)
+                )
+            )
+        }
+    }
+
+    // =========================================================
+    // dp
+    // =========================================================
+
+    private fun dp(
+        value: Int
+    ): Int {
+
+        return (
+            value *
+                resources.displayMetrics.density
+            ).toInt()
+    }
+
+    // =========================================================
+    // 回到掃描頁
+    // =========================================================
+
+    private fun showScannerPage() {
+
+        layoutReportSection.visibility =
+            View.GONE
+
+        layoutScannerSection.visibility =
+            View.VISIBLE
+
+        tvStatus.text =
+            "請按「開始掃描」"
+
+        startCamera()
+    }
+
+    // =========================================================
+    // 停止相機
+    // =========================================================
+
+    private fun stopCamera() {
+
+        try {
+            imageAnalysis?.clearAnalyzer()
+        } catch (_: Exception) {
+        }
+
+        try {
+            cameraProvider?.unbindAll()
+        } catch (_: Exception) {
+        }
+
+        camera = null
+        imageAnalysis = null
+
+        isScanning = false
+        isProcessingFrame = false
+        isTorchOn = false
+    }
+
+    // =========================================================
+    // 相機權限
+    // =========================================================
+
+    private fun hasCameraPermission(): Boolean {
+
+        return ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+
+        super.onRequestPermissionsResult(
+            requestCode,
+            permissions,
+            grantResults
+        )
+
+        if (
+            requestCode == REQUEST_CAMERA
+        ) {
+
+            if (
+                grantResults.isNotEmpty() &&
+                grantResults[0] ==
+                PackageManager.PERMISSION_GRANTED
+            ) {
+
+                startCamera()
+
+            } else {
+
+                tvStatus.text =
+                    "需要相機權限才能掃描條碼"
+
+                Toast.makeText(
+                    this,
+                    "請允許相機權限",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
+    // =========================================================
+    // 啟動 CameraX
+    // =========================================================
+
+    private fun startCamera() {
+
+        if (!hasCameraPermission()) {
+            return
+        }
+
+        val cameraProviderFuture =
+            ProcessCameraProvider
+                .getInstance(this)
+
+        cameraProviderFuture.addListener({
+
+            try {
+
+                val provider =
+                    cameraProviderFuture.get()
+
+                cameraProvider =
+                    provider
+
+                val preview =
+                    Preview.Builder()
+                        .build()
+                        .also {
+                            it.surfaceProvider =
+                                previewView.surfaceProvider
+                        }
+
+                imageAnalysis =
+                    ImageAnalysis.Builder()
+                        .setBackpressureStrategy(
+                            ImageAnalysis
+                                .STRATEGY_KEEP_ONLY_LATEST
+                        )
+                        .build()
+
+                val cameraSelector =
+                    CameraSelector.DEFAULT_BACK_CAMERA
+
+                provider.unbindAll()
+
+                camera =
+                    provider.bindToLifecycle(
+                        this,
+                        cameraSelector,
+                        preview,
+                        imageAnalysis
+                    )
+
+                tvStatus.text =
+                    "相機已準備完成，請按「開始掃描」"
+
+            } catch (e: Exception) {
+
+                e.printStackTrace()
+
+                tvStatus.text =
+                    "相機啟動失敗"
+            }
+
+        }, ContextCompat.getMainExecutor(this))
+    }
+
+    // =========================================================
+    // 返回鍵
+    // =========================================================
+
+    @Suppress("DEPRECATION")
+    override fun onBackPressed() {
+
+        if (
+            layoutReportSection.visibility ==
+            View.VISIBLE
+        ) {
+
+            showScannerPage()
+
+        } else {
+
+            super.onBackPressed()
+        }
+    }
+
+    // =========================================================
+    // Activity 銷毀
+    // =========================================================
+
+    override fun onDestroy() {
+
+        stopScanning()
+        stopCamera()
+
+        try {
+            barcodeScanner?.close()
+        } catch (_: Exception) {
+        }
+
+        client.dispatcher.cancelAll()
+
+        super.onDestroy()
+    }
+}

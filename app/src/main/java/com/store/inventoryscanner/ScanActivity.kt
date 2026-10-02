@@ -2,10 +2,9 @@ package com.store.inventoryscanner
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.media.AudioAttributes
-import android.media.SoundPool
 import android.os.Bundle
 import android.view.KeyEvent
+import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -47,6 +46,7 @@ class ScanActivity : AppCompatActivity() {
 
     // ===== UI =====
     private lateinit var previewView: PreviewView
+    private lateinit var etQty: EditText
     private lateinit var btnScan: MaterialButton
     private lateinit var btnClear: MaterialButton
     private lateinit var btnReport: MaterialButton
@@ -61,18 +61,12 @@ class ScanActivity : AppCompatActivity() {
     private val scannedRecords = linkedMapOf<String, ScanRecord>()
     private lateinit var adapter: ScanAdapter
 
-    // ===== 音效 =====
-    private var soundPool: SoundPool? = null
-    private var successSoundId = 0
-    private var failSoundId = 0
-
     // ===== 網路 =====
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    // 替換為你的 Google Apps Script Web App URL
     private val GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxD84499eLT9602gFVbCsKHrFAUgGYvOayHH9uNRc79HYD4sAQZYCuOA-j2KypNnLx1/exec"
 
     companion object {
@@ -84,7 +78,6 @@ class ScanActivity : AppCompatActivity() {
         setContentView(R.layout.activity_scan)
 
         bindViews()
-        initSounds()
         setupRecycler()
         setupButtons()
 
@@ -101,6 +94,7 @@ class ScanActivity : AppCompatActivity() {
 
     private fun bindViews() {
         previewView = findViewById(R.id.previewView)
+        etQty = findViewById(R.id.etQty)
         btnScan = findViewById(R.id.btnScan)
         btnClear = findViewById(R.id.btnClear)
         btnReport = findViewById(R.id.btnReport)
@@ -123,7 +117,6 @@ class ScanActivity : AppCompatActivity() {
         btnReport.setOnClickListener { showReportDialog() }
     }
 
-    // ==================== 音量鍵攔截 ====================
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         return when (keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP -> {
@@ -138,43 +131,17 @@ class ScanActivity : AppCompatActivity() {
         }
     }
 
-    // ==================== 音效 ====================
-    private fun initSounds() {
-        val attrs = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build()
-        soundPool = SoundPool.Builder()
-            .setMaxStreams(2)
-            .setAudioAttributes(attrs)
-            .build()
+    private fun playSuccessSound() {}
+    private fun playFailSound() {}
 
-        try {
-            successSoundId = soundPool!!.load(this, R.raw.success, 1)
-            failSoundId = soundPool!!.load(this, R.raw.fail, 1)
-        } catch (e: Exception) {
-            // raw 資源不存在時忽略
-        }
-    }
-
-    private fun playSuccessSound() {
-        if (successSoundId != 0) soundPool?.play(successSoundId, 1f, 1f, 1, 0, 1f)
-    }
-
-    private fun playFailSound() {
-        if (failSoundId != 0) soundPool?.play(failSoundId, 1f, 1f, 1, 0, 1f)
-    }
-
-    // ==================== 手電筒 ====================
     private fun toggleTorch() {
         camera?.let {
             isTorchOn = !isTorchOn
             it.cameraControl.enableTorch(isTorchOn)
-            tvStatus.text = if (isTorchOn) getString(R.string.torch_on) else getString(R.string.torch_off)
+            tvStatus.text = if (isTorchOn) "手電筒已開" else "手電筒已關"
         }
     }
 
-    // ==================== 觸發掃描 ====================
     private fun triggerScan() {
         if (isScanning) return
         val now = System.currentTimeMillis()
@@ -182,7 +149,7 @@ class ScanActivity : AppCompatActivity() {
 
         isScanning = true
         lastScanTime = now
-        tvStatus.text = getString(R.string.scanning)
+        tvStatus.text = "正在掃描..."
 
         imageAnalysis?.setAnalyzer(ContextCompat.getMainExecutor(this)) { imageProxy ->
             processImage(imageProxy)
@@ -223,13 +190,16 @@ class ScanActivity : AppCompatActivity() {
             }
     }
 
-    // ==================== 掃到條碼後 ====================
     private fun onBarcodeDetected(code: String) {
         val item = barcodeMap[code]
+        // 取得輸入框的數量，若格式錯誤則預設為 1
+        val addQty = etQty.text.toString().toIntOrNull() ?: 1
+
         if (item != null) {
             playSuccessSound()
-            recordItem(item.customCode, item.intlCode, item.name, 1)
-            tvStatus.text = getString(R.string.scan_success) + " (+1)"
+            recordItem(item.customCode, item.intlCode, item.name, addQty)
+            tvStatus.text = "✓ 掃描成功 (+$addQty)"
+            etQty.setText("1") // 刷完自動歸位為 1
         } else {
             playFailSound()
             tvStatus.text = "資料庫無此條碼"
@@ -239,10 +209,9 @@ class ScanActivity : AppCompatActivity() {
 
     private fun onScanFailed() {
         playFailSound()
-        tvStatus.text = getString(R.string.scan_fail)
+        tvStatus.text = "未對準條碼"
     }
 
-    // ==================== 點貨紀錄 ====================
     private fun recordItem(cCode: String, iCode: String, name: String, qty: Int) {
         val nowTime = SimpleDateFormat("yyyy/MM/dd HH:mm:ss", Locale.TAIWAN).format(Date())
 
@@ -262,7 +231,7 @@ class ScanActivity : AppCompatActivity() {
         val list = scannedRecords.values.sortedBy { it.customCode }
         adapter.updateData(list)
         val totalQty = list.sumOf { it.qty }
-        tvSummary.text = "累計品項：${list.size} 種 | 總點貨量：$totalQty 件"
+        tvSummary.text = "累計品項：${list.size} 種 | 總量：$totalQty"
     }
 
     private fun clearRecords() {
@@ -272,27 +241,27 @@ class ScanActivity : AppCompatActivity() {
             .setPositiveButton("清空") { _, _ ->
                 scannedRecords.clear()
                 refreshList()
-                tvLastItem.text = getString(R.string.last_item_none)
-                tvStatus.text = getString(R.string.scan_hint)
+                tvLastItem.text = "最後點貨：無"
+                tvStatus.text = "請對準條碼掃描"
+                etQty.setText("1")
             }
             .setNegativeButton("取消", null)
             .show()
     }
 
-    // ==================== 手動建檔 ====================
     private fun showCreateItemDialog(rawBarcode: String) {
-        val inputCustom = android.widget.EditText(this).apply {
+        val inputCustom = EditText(this).apply {
             hint = "自編碼（例：000123）"
             setText(if (rawBarcode.matches(Regex("\\d+"))) rawBarcode.padStart(6, '0') else rawBarcode)
         }
-        val inputName = android.widget.EditText(this).apply {
+        val inputName = EditText(this).apply {
             hint = "商品名稱"
         }
 
         val layout = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL
             setPadding(48, 24, 48, 8)
-            addView(android.widget.TextView(this@ScanActivity).apply {
+            addView(TextView(this@ScanActivity).apply {
                 text = "原始條碼：$rawBarcode"
                 setPadding(0, 0, 0, 16)
             })
@@ -313,15 +282,15 @@ class ScanActivity : AppCompatActivity() {
                 if (customCode.matches(Regex("\\d+"))) {
                     customCode = customCode.padStart(6, '0')
                 }
-                postNewItemToCloud(rawBarcode, customCode, name)
+                val addQty = etQty.text.toString().toIntOrNull() ?: 1
+                postNewItemToCloud(rawBarcode, customCode, name, addQty)
             }
             .setNegativeButton("取消", null)
             .show()
     }
 
-    // ==================== 雲端同步 ====================
     private fun fetchCloudData() {
-        tvDbStatus.text = "讀取中…"
+        tvDbStatus.text = "雲端資料庫: 讀取中…"
         Thread {
             try {
                 val request = Request.Builder().url(GAS_WEB_APP_URL).get().build()
@@ -350,26 +319,26 @@ class ScanActivity : AppCompatActivity() {
                         val info = ItemInfo(customCode, intlCode, name)
                         barcodeMap[customCode] = info
                         if (intlCode.isNotEmpty()) barcodeMap[intlCode] = info
-                        barcodeMap[customCode.trimStart('0').ifEmpty { "0" }] = info
+                        barcodeMap[customCode.trimStart('0'].ifEmpty { "0" }] = info
                         count++
                     }
 
                     runOnUiThread {
-                        tvDbStatus.text = "✓ $count 筆"
-                        tvStatus.text = getString(R.string.cloud_success)
+                        tvDbStatus.text = "雲端資料庫: ✓ $count 筆"
+                        tvStatus.text = "已連線，請掃描"
                     }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 runOnUiThread {
-                    tvDbStatus.text = "載入失敗"
-                    tvStatus.text = getString(R.string.cloud_fail)
+                    tvDbStatus.text = "雲端資料庫: 載入失敗"
+                    tvStatus.text = "連線失敗"
                 }
             }
         }.start()
     }
 
-    private fun postNewItemToCloud(intlCode: String, customCode: String, name: String) {
+    private fun postNewItemToCloud(intlCode: String, customCode: String, name: String, addQty: Int) {
         tvStatus.text = "同步至雲端中…"
         Thread {
             try {
@@ -392,8 +361,9 @@ class ScanActivity : AppCompatActivity() {
 
                 runOnUiThread {
                     playSuccessSound()
-                    recordItem(customCode, intlCode, name, 1)
+                    recordItem(customCode, intlCode, name, addQty)
                     tvStatus.text = "✓ 建檔並點貨成功"
+                    etQty.setText("1") // 建檔成功後也自動歸位為 1
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -405,7 +375,6 @@ class ScanActivity : AppCompatActivity() {
         }.start()
     }
 
-    // ==================== 核對單 ====================
     private fun showReportDialog() {
         if (scannedRecords.isEmpty()) {
             Toast.makeText(this, "目前沒有點貨紀錄", Toast.LENGTH_SHORT).show()
@@ -428,7 +397,6 @@ class ScanActivity : AppCompatActivity() {
             .show()
     }
 
-    // ==================== 相機權限 ====================
     private fun hasCameraPermission() =
         ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
@@ -469,7 +437,6 @@ class ScanActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        soundPool?.release()
         cameraProvider?.unbindAll()
     }
 }

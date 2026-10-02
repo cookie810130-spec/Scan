@@ -319,7 +319,10 @@ class ScanActivity : AppCompatActivity() {
                         val info = ItemInfo(customCode, intlCode, name)
                         barcodeMap[customCode] = info
                         if (intlCode.isNotEmpty()) barcodeMap[intlCode] = info
-                        barcodeMap[customCode.trimStart('0')].ifEmpty { "0" }] = info
+                        val normalizedCustomCode =
+    customCode.trimStart('0').ifEmpty { "0" }
+
+barcodeMap[normalizedCustomCode] = info
                         count++
                     }
 

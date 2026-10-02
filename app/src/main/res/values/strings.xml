@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">大樹點貨掃描器</string>
+    <string name="torch_on">手電筒：開啟</string>
+    <string name="torch_off">手電筒：關閉</string>
+    <string name="scanning">掃描中...</string>
+    <string name="scan_success">✓ 成功</string>
+    <string name="scan_fail">未偵測到條碼</string>
+    <string name="cloud_success">✓ 雲端資料庫已連線</string>
+    <string name="cloud_fail">❌ 雲端連線失敗</string>
+    <string name="last_item_none">最後點貨品項：無</string>
+    <string name="scan_hint">按 音量下鍵 或 掃描按鈕 進行點貨</string>
+</resources>

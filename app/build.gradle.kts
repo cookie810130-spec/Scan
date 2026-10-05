@@ -47,4 +47,5 @@ dependencies {
 
     // 網路請求 OkHttp
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("io.github.zxing-cpp:android:3.1.1")
 }

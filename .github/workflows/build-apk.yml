@@ -28,7 +28,8 @@ jobs:
 
       - name: Build with Gradle
         run: gradle :app:assembleDebug --stacktrace
-
+      - name: Run ZXing DataBar test
+        run: gradle :app:testDebugUnitTest --tests com.store.inventoryscanner.ZxingDataBarImageTest --stacktrace
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:

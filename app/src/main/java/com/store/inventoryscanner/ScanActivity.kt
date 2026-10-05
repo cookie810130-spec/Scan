@@ -439,15 +439,24 @@ class ScanActivity : AppCompatActivity() {
     }
 
     private fun findItem(raw: String): ItemInfo? {
-        val code = raw.trim()
-        barcodeMap[code]?.let { return it }
-        if (code.matches(Regex("\\d+"))) {
-            if (code.length == 12) barcodeMap["0$code"]?.let { return it }
-            barcodeMap[code.trimStart('0').ifEmpty { "0" }]?.let { return it }
-            barcodeMap[code.padStart(6, '0')]?.let { return it }
-        }
-        return null
+    val code = raw.trim()
+    barcodeMap[code]?.let { return it }
+
+    // ===== GS1-128 開始 =====
+    // ML Kit 先讀取 Code 128，
+    // 這裡再解析 GS1 AI，抓出 AI 01 的 GTIN。
+    for (key in Gs1Parser.lookupKeys(code)) {
+        barcodeMap[key]?.let { return it }
     }
+    // ===== GS1-128 結束 =====
+
+    if (code.matches(Regex("\\d+"))) {
+        if (code.length == 12) barcodeMap["0$code"]?.let { return it }
+        barcodeMap[code.trimStart('0').ifEmpty { "0" }]?.let { return it }
+        barcodeMap[code.padStart(6, '0')]?.let { return it }
+    }
+    return null
+}
 
     private fun recordItem(c: String, i: String, n: String, q: Int) {
         val t = SimpleDateFormat("yyyy/MM/dd HH:mm:ss", Locale.TAIWAN).format(Date())

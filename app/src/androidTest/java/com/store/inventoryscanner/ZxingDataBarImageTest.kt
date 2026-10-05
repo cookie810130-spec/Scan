@@ -27,7 +27,7 @@ class ZxingDataBarImageTest {
 
         val context = InstrumentationRegistry
             .getInstrumentation()
-            .targetContext
+            .context
 
         val bitmap = context.assets.open("databar_test.jpg").use { input ->
             BitmapFactory.decodeStream(input)

@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - 'Plan-z'
+      - 'Plan-z-hd'
 
   pull_request:
     branches:

@@ -46,6 +46,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.Executors
+import zxingcpp.BarcodeReader
 
 class ScanActivity : AppCompatActivity() {
     private enum class Mode { POINT, INVENTORY }
@@ -62,7 +64,9 @@ class ScanActivity : AppCompatActivity() {
     private var isScanning = false
     private var isProcessingFrame = false
     private var lastScanTime = 0L
-
+    private val scanExecutor = Executors.newSingleThreadExecutor()
+    private var lastZxingCppAttemptTime = 0L
+    
     private lateinit var previewView: PreviewView
     private lateinit var etQty: EditText
     private lateinit var etManualCode: EditText

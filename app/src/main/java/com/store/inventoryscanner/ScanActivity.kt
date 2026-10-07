@@ -34,6 +34,8 @@ import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.common.InputImage
+import zxingcpp.BarcodeReader
+import java.util.concurrent.Executors
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -53,6 +55,10 @@ class ScanActivity : AppCompatActivity() {
     private var camera: Camera? = null
     private var imageAnalysis: ImageAnalysis? = null
     private var barcodeScanner: BarcodeScanner? = null
+
+    private var zxingCppReaderReady = false
+    private val scanExecutor = Executors.newSingleThreadExecutor()
+    private var lastZxingCppAttemptTime = 0L
     private var successPlayer: MediaPlayer? = null
     private var failPlayer: MediaPlayer? = null
     private var isScanning = false
@@ -102,6 +108,7 @@ class ScanActivity : AppCompatActivity() {
     companion object {
         private const val REQUEST_CAMERA = 1001
         private const val MAX_RETRY = 3
+        private const val ZXING_CPP_INTERVAL_MS = 250L
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -127,6 +134,11 @@ class ScanActivity : AppCompatActivity() {
             .build()
 
         barcodeScanner = BarcodeScanning.getClient(oneDimensionalOptions)
+
+// ZXing-C++ DataBar 補掃引擎
+// 實際第一次 read() 時才會使用 native engine
+        zxingCppReaderReady = true
+
         loadProductCache()
 
         if (hasCameraPermission()) startCamera()
@@ -378,33 +390,84 @@ class ScanActivity : AppCompatActivity() {
     }
 
     private fun processImage(proxy: ImageProxy) {
-        if (!isScanning || isProcessingFrame) {
-            proxy.close()
-            return
-        }
-        val image = proxy.image ?: run {
-            proxy.close()
-            return
-        }
-        isProcessingFrame = true
-        barcodeScanner?.process(
-            InputImage.fromMediaImage(image, proxy.imageInfo.rotationDegrees)
-        )?.addOnSuccessListener { bars ->
-            if (isScanning) {
-                bars.firstOrNull()?.rawValue?.takeIf { it.isNotBlank() }?.let { code ->
-                    stopScanning()
-                    onBarcodeDetected(code)
-                }
-            }
-        }?.addOnFailureListener {
-        }?.addOnCompleteListener {
-            isProcessingFrame = false
-            proxy.close()
-        } ?: run {
-            isProcessingFrame = false
-            proxy.close()
-        }
+
+    if (!isScanning || isProcessingFrame) {
+        proxy.close()
+        return
     }
+
+    val image = proxy.image
+
+    if (image == null) {
+        proxy.close()
+        return
+    }
+
+    isProcessingFrame = true
+
+    val inputImage = InputImage.fromMediaImage(
+        image,
+        proxy.imageInfo.rotationDegrees
+    )
+
+    barcodeScanner
+        ?.process(inputImage)
+        ?.addOnSuccessListener { bars ->
+
+            if (!isScanning) {
+                return@addOnSuccessListener
+            }
+
+            // =====================================================
+            // Engine 1：Google ML Kit
+            // =====================================================
+
+            val mlKitCode = bars
+                .asSequence()
+                .mapNotNull { it.rawValue }
+                .firstOrNull { it.isNotBlank() }
+
+            if (!mlKitCode.isNullOrBlank()) {
+
+                stopScanning()
+
+                runOnUiThread {
+                    onBarcodeDetected(mlKitCode)
+                }
+
+                return@addOnSuccessListener
+            }
+
+            // =====================================================
+            // Engine 2：ZXing-C++
+            //
+            // ML Kit 沒找到 → DataBar 補掃
+            // =====================================================
+
+            tryZxingCpp(proxy)
+
+        }
+        ?.addOnFailureListener {
+
+            // ML Kit 本身發生錯誤，也嘗試 DataBar 補掃
+            if (isScanning) {
+                tryZxingCpp(proxy)
+            }
+        }
+        ?.addOnCompleteListener {
+
+            isProcessingFrame = false
+
+            // ML Kit 與 ZXing-C++ 都已經使用完影像
+            proxy.close()
+        }
+        ?: run {
+
+            // ML Kit 尚未初始化
+            isProcessingFrame = false
+            proxy.close()
+        }
+}
 
     private fun stopScanning() {
         isScanning = false

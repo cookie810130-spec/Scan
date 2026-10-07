@@ -386,8 +386,8 @@ class ScanActivity : AppCompatActivity() {
         isProcessingFrame = false
         if (mode == Mode.INVENTORY) tvStatus.text = "盤點：正在尋找一維條碼..."
         else tvStatus.text = "正在尋找條碼..."
-        imageAnalysis?.setAnalyzer(ContextCompat.getMainExecutor(this)) { processImage(it) }
-    }
+        imageAnalysis?.setAnalyzer(scanExecutor) { processImage(it) }
+    }     
 
     private fun processImage(proxy: ImageProxy) {
 
@@ -474,7 +474,30 @@ class ScanActivity : AppCompatActivity() {
         isProcessingFrame = false
         imageAnalysis?.clearAnalyzer()
     }
+    private fun tryZxingCpp(proxy: ImageProxy) {
 
+           if (!isScanning) return
+
+           val now = System.currentTimeMillis()
+
+    // ZXing-C++ 不需要每一幀執行
+           if (now - lastZxingCppAttemptTime < ZXING_CPP_INTERVAL_MS) {
+           return
+    }
+
+           lastZxingCppAttemptTime = now
+
+           val code = ZxingCppDecoder.decode(proxy)
+
+           if (!code.isNullOrBlank() && isScanning) {
+
+           stopScanning()
+
+           runOnUiThread {
+           onBarcodeDetected(code)
+        }
+    }
+}
     private fun onBarcodeDetected(code: String) {
         val item = findItem(code)
         if (mode == Mode.INVENTORY) {
@@ -1176,12 +1199,16 @@ class ScanActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        stopScanning()
-        stopCamera()
-        try { barcodeScanner?.close() } catch (_: Exception) {}
-        try { successPlayer?.release() } catch (_: Exception) {}
-        try { failPlayer?.release() } catch (_: Exception) {}
-        client.dispatcher.cancelAll()
-        super.onDestroy()
-    }
+    stopScanning()
+    stopCamera()
+
+    try { barcodeScanner?.close() } catch (_: Exception) {}
+    try { successPlayer?.release() } catch (_: Exception) {}
+    try { failPlayer?.release() } catch (_: Exception) {}
+
+    scanExecutor.shutdownNow()
+
+    client.dispatcher.cancelAll()
+
+    super.onDestroy()
 }

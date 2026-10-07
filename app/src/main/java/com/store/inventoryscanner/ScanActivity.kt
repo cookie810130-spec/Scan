@@ -55,8 +55,6 @@ class ScanActivity : AppCompatActivity() {
     private var camera: Camera? = null
     private var imageAnalysis: ImageAnalysis? = null
     private var barcodeScanner: BarcodeScanner? = null
-
-    private var zxingCppReaderReady = false
     private val scanExecutor = Executors.newSingleThreadExecutor()
     private var lastZxingCppAttemptTime = 0L
     private var successPlayer: MediaPlayer? = null
@@ -137,7 +135,6 @@ class ScanActivity : AppCompatActivity() {
 
 // ZXing-C++ DataBar 補掃引擎
 // 實際第一次 read() 時才會使用 native engine
-        zxingCppReaderReady = true
 
         loadProductCache()
 

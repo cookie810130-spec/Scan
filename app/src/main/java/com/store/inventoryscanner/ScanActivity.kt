@@ -44,6 +44,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import android.util.Size
 
 class ScanActivity : AppCompatActivity() {
 
@@ -723,12 +724,13 @@ class ScanActivity : AppCompatActivity() {
                 )
 
                 imageAnalysis =
-                    ImageAnalysis.Builder()
-                        .setBackpressureStrategy(
-                            ImageAnalysis
-                                .STRATEGY_KEEP_ONLY_LATEST
-                        )
-                        .build()
+                     ImageAnalysis.Builder()
+                       .setTargetResolution(Size(1280, 720))
+                       .setBackpressureStrategy(
+                          ImageAnalysis
+                           .STRATEGY_KEEP_ONLY_LATEST
+        )
+        .build()
 
                 provider.unbindAll()
 

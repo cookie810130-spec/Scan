@@ -43,7 +43,6 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 class ScanActivity : AppCompatActivity() {
@@ -60,19 +59,31 @@ class ScanActivity : AppCompatActivity() {
     private var imageAnalysis: ImageAnalysis? = null
     private var barcodeScanner: BarcodeScanner? = null
 
-    // ============================================================
-    // ZXing-C++ 第二引擎
-    // 只在 ML Kit 沒有找到條碼時補掃 DataBar
-    // ============================================================
-    private val scanExecutor = Executors.newSingleThreadExecutor()
-    private var lastZxingCppAttemptTime = 0L
-
     private var successPlayer: MediaPlayer? = null
     private var failPlayer: MediaPlayer? = null
 
     private var isScanning = false
     private var isProcessingFrame = false
     private var lastScanTime = 0L
+
+    /*
+     * ============================================================
+     * ZXing-C++ 第二引擎
+     * ============================================================
+     *
+     * 這裡只放掃描執行緒與補掃時間控制。
+     *
+     * 真正的 ZXing-C++ BarcodeReader
+     * 放在 ZxingCppDecoder.kt。
+     *
+     * ScanActivity 不直接 import BarcodeReader，
+     * 避免把兩個掃描引擎的 API 混在一起。
+     */
+
+    private val scanExecutor =
+        java.util.concurrent.Executors.newSingleThreadExecutor()
+
+    private var lastZxingCppAttemptTime = 0L
 
     private lateinit var previewView: PreviewView
     private lateinit var etQty: EditText
@@ -103,7 +114,8 @@ class ScanActivity : AppCompatActivity() {
     private lateinit var etInventoryManualCode: EditText
     private lateinit var inventoryPreviewView: PreviewView
 
-    private val barcodeMap = mutableMapOf<String, ItemInfo>()
+    private val barcodeMap =
+        mutableMapOf<String, ItemInfo>()
 
     private val scannedRecords =
         linkedMapOf<String, ScanRecord>()
@@ -113,45 +125,69 @@ class ScanActivity : AppCompatActivity() {
 
     private lateinit var adapter: ScanAdapter
 
-    private val cacheFileName = "product_cache.json"
+    private val cacheFileName =
+        "product_cache.json"
 
     @Volatile
     private var cloudLoading = false
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .callTimeout(90, TimeUnit.SECONDS)
-        .build()
+    private val client =
+        OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .callTimeout(90, TimeUnit.SECONDS)
+            .build()
 
     private val GAS_WEB_APP_URL =
         "https://script.google.com/macros/s/AKfycbxD84499eLT9602gFVbCsKHrFAUgGYvOayHH9uNRc79HYD4sAQZYCuOA-j2KypNnLx1/exec"
 
     companion object {
+
         private const val REQUEST_CAMERA = 1001
+
         private const val MAX_RETRY = 3
 
-        // ZXing-C++ 最短補掃間隔
+        /*
+         * ZXing-C++ DataBar 補掃最短間隔。
+         *
+         * ML Kit 是主要引擎。
+         * 只有 ML Kit 沒找到條碼時，
+         * 才讓 ZXing-C++ 進行補掃。
+         */
         private const val ZXING_CPP_INTERVAL_MS = 250L
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
+    override fun onCreate(
+        savedInstanceState: Bundle?
+    ) {
         super.onCreate(savedInstanceState)
 
-        setContentView(R.layout.activity_scan)
+        setContentView(
+            R.layout.activity_scan
+        )
 
         bindViews()
         setupRecycler()
         setupButtons()
         setupSounds()
 
-        // ========================================================
-        // Engine 1：Google ML Kit
-        //
-        // 僅啟用一維條碼
-        // 不啟用 QR / Data Matrix / PDF417 等二維碼
-        // ========================================================
+        /*
+         * ========================================================
+         * Engine 1：Google ML Kit
+         * ========================================================
+         *
+         * 只啟用一維條碼。
+         *
+         * 不啟用：
+         * QR
+         * Data Matrix
+         * PDF417
+         * Aztec
+         * 等二維碼。
+         *
+         * DataBar 則交給第二引擎 ZXing-C++。
+         */
 
         val oneDimensionalOptions =
             BarcodeScannerOptions.Builder()
@@ -169,97 +205,151 @@ class ScanActivity : AppCompatActivity() {
                 .build()
 
         barcodeScanner =
-            BarcodeScanning.getClient(oneDimensionalOptions)
+            BarcodeScanning.getClient(
+                oneDimensionalOptions
+            )
 
         loadProductCache()
 
         if (hasCameraPermission()) {
+
             startCamera()
+
         } else {
+
             ActivityCompat.requestPermissions(
                 this,
-                arrayOf(Manifest.permission.CAMERA),
+                arrayOf(
+                    Manifest.permission.CAMERA
+                ),
                 REQUEST_CAMERA
             )
         }
 
         fetchCloudData()
+
         updateModeUi()
     }
 
     private fun bindViews() {
 
         previewView =
-            findViewById(R.id.previewView)
+            findViewById(
+                R.id.previewView
+            )
 
         etQty =
-            findViewById(R.id.etQty)
+            findViewById(
+                R.id.etQty
+            )
 
         etManualCode =
-            findViewById(R.id.etManualCode)
+            findViewById(
+                R.id.etManualCode
+            )
 
         btnScan =
-            findViewById(R.id.btnScan)
+            findViewById(
+                R.id.btnScan
+            )
 
         btnClear =
-            findViewById(R.id.btnClear)
+            findViewById(
+                R.id.btnClear
+            )
 
         btnReport =
-            findViewById(R.id.btnReport)
+            findViewById(
+                R.id.btnReport
+            )
 
         btnRefreshDb =
-            findViewById(R.id.btnRefreshDb)
+            findViewById(
+                R.id.btnRefreshDb
+            )
 
         tvStatus =
-            findViewById(R.id.tvStatus)
+            findViewById(
+                R.id.tvStatus
+            )
 
         tvLastItem =
-            findViewById(R.id.tvLastItem)
+            findViewById(
+                R.id.tvLastItem
+            )
 
         tvDbStatus =
-            findViewById(R.id.tvDbStatus)
+            findViewById(
+                R.id.tvDbStatus
+            )
 
         tvSummary =
-            findViewById(R.id.tvSummary)
+            findViewById(
+                R.id.tvSummary
+            )
 
         recyclerView =
-            findViewById(R.id.recyclerView)
+            findViewById(
+                R.id.recyclerView
+            )
 
         layoutScannerSection =
-            findViewById(R.id.layoutScannerSection)
+            findViewById(
+                R.id.layoutScannerSection
+            )
 
         layoutReportSection =
-            findViewById(R.id.layoutReportSection)
+            findViewById(
+                R.id.layoutReportSection
+            )
 
         layoutInventorySection =
-            findViewById(R.id.layoutInventorySection)
+            findViewById(
+                R.id.layoutInventorySection
+            )
 
         tvReportSummary =
-            findViewById(R.id.tvReportSummary)
+            findViewById(
+                R.id.tvReportSummary
+            )
 
         tvReportContent =
-            findViewById(R.id.tvReportContent)
+            findViewById(
+                R.id.tvReportContent
+            )
 
         btnBackToScan =
-            findViewById(R.id.btnBackToScan)
+            findViewById(
+                R.id.btnBackToScan
+            )
 
         inventoryContent =
-            findViewById(R.id.inventoryContent)
+            findViewById(
+                R.id.inventoryContent
+            )
 
         tvInventorySummary =
-            findViewById(R.id.tvInventorySummary)
+            findViewById(
+                R.id.tvInventorySummary
+            )
 
         etInventoryManualCode =
-            findViewById(R.id.etInventoryManualCode)
+            findViewById(
+                R.id.etInventoryManualCode
+            )
 
         inventoryPreviewView =
-            findViewById(R.id.inventoryPreviewView)
+            findViewById(
+                R.id.inventoryPreviewView
+            )
     }
 
     private fun setupRecycler() {
 
         adapter =
-            ScanAdapter(emptyList())
+            ScanAdapter(
+                emptyList()
+            )
 
         recyclerView.layoutManager =
             LinearLayoutManager(this)
@@ -275,7 +365,9 @@ class ScanActivity : AppCompatActivity() {
         ).setOnClickListener {
 
             if (mode != Mode.POINT) {
+
                 mode = Mode.POINT
+
                 showPointMode()
             }
         }
@@ -285,7 +377,9 @@ class ScanActivity : AppCompatActivity() {
         ).setOnClickListener {
 
             if (mode != Mode.INVENTORY) {
+
                 mode = Mode.INVENTORY
+
                 showInventoryMode()
             }
         }
@@ -317,44 +411,55 @@ class ScanActivity : AppCompatActivity() {
 
             val enter =
                 actionId ==
-                        android.view.inputmethod.EditorInfo.IME_ACTION_DONE ||
-                        (
-                            event?.keyCode ==
-                                    KeyEvent.KEYCODE_ENTER &&
-                            event.action ==
-                                    KeyEvent.ACTION_DOWN
-                        )
+                    android.view.inputmethod.EditorInfo
+                        .IME_ACTION_DONE ||
+                (
+                    event?.keyCode ==
+                        KeyEvent.KEYCODE_ENTER &&
+                    event.action ==
+                        KeyEvent.ACTION_DOWN
+                )
 
             if (enter) {
+
                 handleManualCode()
+
                 true
+
             } else {
+
                 false
             }
         }
 
-        etInventoryManualCode.setOnEditorActionListener {
-                _,
-                actionId,
-                event ->
+        etInventoryManualCode
+            .setOnEditorActionListener {
+                    _,
+                    actionId,
+                    event ->
 
-            val enter =
-                actionId ==
-                        android.view.inputmethod.EditorInfo.IME_ACTION_DONE ||
-                        (
-                            event?.keyCode ==
-                                    KeyEvent.KEYCODE_ENTER &&
-                            event.action ==
-                                    KeyEvent.ACTION_DOWN
-                        )
+                val enter =
+                    actionId ==
+                        android.view.inputmethod.EditorInfo
+                            .IME_ACTION_DONE ||
+                    (
+                        event?.keyCode ==
+                            KeyEvent.KEYCODE_ENTER &&
+                        event.action ==
+                            KeyEvent.ACTION_DOWN
+                    )
 
-            if (enter) {
-                handleInventoryManualCode()
-                true
-            } else {
-                false
+                if (enter) {
+
+                    handleInventoryManualCode()
+
+                    true
+
+                } else {
+
+                    false
+                }
             }
-        }
 
         findViewById<MaterialButton>(
             R.id.btnInventoryScan
@@ -418,7 +523,10 @@ class ScanActivity : AppCompatActivity() {
             } else {
 
                 MediaPlayer
-                    .create(this, recreate)
+                    .create(
+                        this,
+                        recreate
+                    )
                     ?.also {
                         it.start()
                     }
@@ -433,7 +541,10 @@ class ScanActivity : AppCompatActivity() {
                 player?.release()
 
                 MediaPlayer
-                    .create(this, recreate)
+                    .create(
+                        this,
+                        recreate
+                    )
                     ?.also {
                         it.start()
                     }
@@ -446,6 +557,7 @@ class ScanActivity : AppCompatActivity() {
     }
 
     private fun playSuccessSound() {
+
         successPlayer =
             play(
                 successPlayer,
@@ -454,6 +566,7 @@ class ScanActivity : AppCompatActivity() {
     }
 
     private fun playFailSound() {
+
         failPlayer =
             play(
                 failPlayer,
@@ -472,15 +585,21 @@ class ScanActivity : AppCompatActivity() {
 
                 camera?.let { cam ->
 
-                    if (cam.cameraInfo.hasFlashUnit()) {
+                    if (
+                        cam.cameraInfo
+                            .hasFlashUnit()
+                    ) {
 
                         val isTorchOn =
-                            cam.cameraInfo.torchState.value ==
-                                    TorchState.ON
+                            cam.cameraInfo
+                                .torchState
+                                .value ==
+                                TorchState.ON
 
-                        cam.cameraControl.enableTorch(
-                            !isTorchOn
-                        )
+                        cam.cameraControl
+                            .enableTorch(
+                                !isTorchOn
+                            )
                     }
                 }
 
@@ -495,6 +614,7 @@ class ScanActivity : AppCompatActivity() {
             }
 
             else -> {
+
                 super.onKeyDown(
                     keyCode,
                     event
@@ -550,8 +670,7 @@ class ScanActivity : AppCompatActivity() {
 
         updateModeUi()
     }
-
-    private fun updateModeUi() {
+     private fun updateModeUi() {
 
         val point =
             findViewById<MaterialButton>(
@@ -578,15 +697,12 @@ class ScanActivity : AppCompatActivity() {
     private fun startInventoryCamera() {
 
         // 同一個 CameraX 預覽，
-        // 只把 Preview surface 換到盤點頁 PreviewView。
+        // 只把 Preview surface 換到盤點頁的 PreviewView。
 
-        if (!hasCameraPermission()) {
-            return
-        }
+        if (!hasCameraPermission()) return
 
         val future =
-            ProcessCameraProvider
-                .getInstance(this)
+            ProcessCameraProvider.getInstance(this)
 
         future.addListener({
 
@@ -638,8 +754,7 @@ class ScanActivity : AppCompatActivity() {
     private fun handleManualCode() {
 
         val code =
-            etManualCode
-                .text
+            etManualCode.text
                 .toString()
                 .trim()
 
@@ -658,8 +773,7 @@ class ScanActivity : AppCompatActivity() {
             findItem(code)
 
         val qty =
-            etQty
-                .text
+            etQty.text
                 .toString()
                 .toIntOrNull()
                 ?.coerceAtLeast(1)
@@ -705,14 +819,11 @@ class ScanActivity : AppCompatActivity() {
     private fun handleInventoryManualCode() {
 
         val code =
-            etInventoryManualCode
-                .text
+            etInventoryManualCode.text
                 .toString()
                 .trim()
 
-        if (code.isEmpty()) {
-            return
-        }
+        if (code.isEmpty()) return
 
         val item =
             findItem(code)
@@ -741,31 +852,71 @@ class ScanActivity : AppCompatActivity() {
         }
     }
 
-        private fun triggerScan() {
+    /*
+     * ============================================================
+     * 開始掃描
+     * ============================================================
+     *
+     * 第一引擎：
+     * ML Kit
+     *
+     * 第二引擎：
+     * ZXing-C++
+     *
+     * 流程：
+     *
+     * CameraX frame
+     *      ↓
+     * ML Kit
+     *      ↓
+     * 找到 → 完成
+     *      ↓
+     * 找不到
+     *      ↓
+     * ZXing-C++
+     *      ↓
+     * DataBar → 完成
+     *
+     * 不讓兩個引擎同時處理同一張影像。
+     */
+
+    private fun triggerScan() {
 
         if (
-            layoutReportSection.visibility == View.VISIBLE ||
-            isScanning ||
-            imageAnalysis == null
+            layoutReportSection.visibility ==
+            View.VISIBLE
         ) {
+            return
+        }
+
+        if (isScanning) {
+            return
+        }
+
+        if (imageAnalysis == null) {
             return
         }
 
         val now =
             System.currentTimeMillis()
 
-        if (now - lastScanTime < 800) {
+        if (
+            now - lastScanTime < 800
+        ) {
             return
         }
 
-        lastScanTime = now
+        lastScanTime =
+            now
 
-        isScanning = true
-        isProcessingFrame = false
+        isScanning =
+            true
 
-        // 每次開始新的掃描，
-        // 讓 ZXing-C++ 可以立即進行第一次補掃。
-        lastZxingCppAttemptTime = 0L
+        isProcessingFrame =
+            false
+
+        lastZxingCppAttemptTime =
+            0L
 
         if (mode == Mode.INVENTORY) {
 
@@ -778,16 +929,34 @@ class ScanActivity : AppCompatActivity() {
                 "正在尋找條碼..."
         }
 
-        // 使用獨立掃描執行緒，
-        // 避免 ZXing-C++ 阻塞 UI thread。
-        imageAnalysis?.setAnalyzer(scanExecutor) {
+        /*
+         * 使用專用掃描執行緒。
+         *
+         * 不使用 MainExecutor 做影像分析，
+         * 避免掃描時卡住 UI。
+         */
+
+        imageAnalysis?.setAnalyzer(
+            scanExecutor
+        ) {
             processImage(it)
         }
     }
 
-    private fun processImage(proxy: ImageProxy) {
+    /*
+     * ============================================================
+     * CameraX → ML Kit
+     * ============================================================
+     */
 
-        if (!isScanning || isProcessingFrame) {
+    private fun processImage(
+        proxy: ImageProxy
+    ) {
+
+        if (
+            !isScanning ||
+            isProcessingFrame
+        ) {
 
             proxy.close()
 
@@ -796,15 +965,15 @@ class ScanActivity : AppCompatActivity() {
 
         val image =
             proxy.image
+                ?: run {
 
-        if (image == null) {
+                    proxy.close()
 
-            proxy.close()
+                    return
+                }
 
-            return
-        }
-
-        isProcessingFrame = true
+        isProcessingFrame =
+            true
 
         val inputImage =
             InputImage.fromMediaImage(
@@ -814,104 +983,100 @@ class ScanActivity : AppCompatActivity() {
 
         barcodeScanner
             ?.process(inputImage)
-
-            // ====================================================
-            // Engine 1：Google ML Kit
-            // ====================================================
-            .addOnSuccessListener(scanExecutor) { bars ->
+            ?.addOnSuccessListener(
+                scanExecutor
+            ) { bars ->
 
                 if (!isScanning) {
                     return@addOnSuccessListener
                 }
 
-                val mlKitCode =
+                /*
+                 * ML Kit 找到一維條碼
+                 */
+
+                val code =
                     bars
-                        .asSequence()
-                        .mapNotNull {
-                            it.rawValue?.trim()
-                        }
-                        .firstOrNull {
+                        .firstOrNull()
+                        ?.rawValue
+                        ?.trim()
+                        ?.takeIf {
                             it.isNotEmpty()
                         }
 
-                // ------------------------------------------------
-                // ML Kit 找到條碼
-                // ------------------------------------------------
-
-                if (!mlKitCode.isNullOrBlank()) {
+                if (code != null) {
 
                     stopScanning()
 
                     runOnUiThread {
 
                         onBarcodeDetected(
-                            mlKitCode
+                            code
                         )
                     }
 
-                    return@addOnSuccessListener
+                } else {
+
+                    /*
+                     * ML Kit 沒找到。
+                     *
+                     * 這裡才進入 ZXing-C++。
+                     *
+                     * ZXing-C++ 不會每個 frame 都跑，
+                     * 由 ZXING_CPP_INTERVAL_MS 控制。
+                     */
+
+                    tryZxingCpp(proxy)
                 }
-
-                // ------------------------------------------------
-                // ML Kit 沒找到
-                //
-                // 交給 ZXing-C++ 補掃 DataBar
-                // ------------------------------------------------
-
-                tryZxingCpp(proxy)
             }
+            ?.addOnFailureListener(
+                scanExecutor
+            ) {
 
-            // ====================================================
-            // ML Kit 發生錯誤
-            // 仍然嘗試 ZXing-C++
-            // ====================================================
-            .addOnFailureListener(scanExecutor) {
+                /*
+                 * ML Kit 本次分析失敗，
+                 * 也交給 ZXing-C++ 嘗試。
+                 */
 
                 if (isScanning) {
 
                     tryZxingCpp(proxy)
                 }
             }
+            ?.addOnCompleteListener(
+                scanExecutor
+            ) {
 
-            // ====================================================
-            // 本 frame 的 ML Kit 工作結束
-            // ====================================================
-            .addOnCompleteListener(scanExecutor) {
+                isProcessingFrame =
+                    false
 
-                isProcessingFrame = false
-
-                // CameraX ImageProxy 必須確實 close。
                 proxy.close()
             }
-
             ?: run {
 
-                isProcessingFrame = false
+                isProcessingFrame =
+                    false
 
                 proxy.close()
             }
     }
 
-    private fun stopScanning() {
-
-        isScanning = false
-
-        isProcessingFrame = false
-
-        imageAnalysis?.clearAnalyzer()
-    }
-
-    // ============================================================
-    // Engine 2：ZXing-C++
-    //
-    // 主要用途：
-    // GS1 DataBar
-    // DataBar Omnidirectional
-    // DataBar Stacked
-    // DataBar Limited
-    // DataBar Expanded
-    // 等 ML Kit 不支援的一維 DataBar
-    // ============================================================
+    /*
+     * ============================================================
+     * ZXing-C++ DataBar 補掃
+     * ============================================================
+     *
+     * 注意：
+     *
+     * 這裡不直接建立 BarcodeReader。
+     *
+     * BarcodeReader 封裝在：
+     *
+     * ZxingCppDecoder.kt
+     *
+     * 這樣 ScanActivity 可以維持乾淨，
+     * 也方便之後調整 ZXing-C++ API。
+     */
 
     private fun tryZxingCpp(
         proxy: ImageProxy
@@ -924,23 +1089,22 @@ class ScanActivity : AppCompatActivity() {
         val now =
             System.currentTimeMillis()
 
-        // 不讓 ZXing-C++ 每一幀都執行。
-        //
-        // CameraX 可能每秒產生很多 frame，
-        // 250ms 至少讓補掃保持一定間隔。
         if (
-            now - lastZxingCppAttemptTime <
-            ZXING_CPP_INTERVAL_MS
+            now - lastZxingCppAttemptTime
+            < ZXING_CPP_INTERVAL_MS
         ) {
             return
         }
 
-        lastZxingCppAttemptTime = now
+        lastZxingCppAttemptTime =
+            now
 
         try {
 
             val code =
-                ZxingCppDecoder.decode(proxy)
+                ZxingCppDecoder.decode(
+                    proxy
+                )
 
             if (
                 !code.isNullOrBlank() &&
@@ -957,14 +1121,41 @@ class ScanActivity : AppCompatActivity() {
                 }
             }
 
-        } catch (_: Exception) {
+        } catch (e: Exception) {
 
-            // 本次 DataBar 補掃失敗。
-            //
-            // 不顯示錯誤，
-            // 下一個 CameraX frame 會繼續嘗試。
+            /*
+             * 本次 DataBar 補掃失敗。
+             *
+             * 不顯示錯誤，
+             * 下一張 CameraX frame 繼續嘗試。
+             */
+
+            e.printStackTrace()
         }
     }
+
+    /*
+     * ============================================================
+     * 停止掃描
+     * ============================================================
+     */
+
+    private fun stopScanning() {
+
+        isScanning =
+            false
+
+        isProcessingFrame =
+            false
+
+        imageAnalysis?.clearAnalyzer()
+    }
+
+    /*
+     * ============================================================
+     * 條碼找到後
+     * ============================================================
+     */
 
     private fun onBarcodeDetected(
         code: String
@@ -973,9 +1164,11 @@ class ScanActivity : AppCompatActivity() {
         val item =
             findItem(code)
 
-        // ========================================================
-        // 盤點模式
-        // ========================================================
+        /*
+         * ------------------------------
+         * 盤點模式
+         * ------------------------------
+         */
 
         if (mode == Mode.INVENTORY) {
 
@@ -999,13 +1192,14 @@ class ScanActivity : AppCompatActivity() {
             return
         }
 
-        // ========================================================
-        // 一般點貨模式
-        // ========================================================
+        /*
+         * ------------------------------
+         * 點貨模式
+         * ------------------------------
+         */
 
         val qty =
-            etQty
-                .text
+            etQty.text
                 .toString()
                 .toIntOrNull()
                 ?.coerceAtLeast(1)
@@ -1029,14 +1223,33 @@ class ScanActivity : AppCompatActivity() {
 
         } else {
 
+            /*
+             * 點貨模式找不到商品：
+             *
+             * 保留原本功能，
+             * 顯示建立商品視窗。
+             *
+             * 不改 GAS 邏輯。
+             */
+
             playFailSound()
 
             tvStatus.text =
                 "資料庫沒有此條碼"
 
-            showCreateItemDialog(code)
+            showCreateItemDialog(
+                code
+            )
         }
     }
+
+    /*
+     * ============================================================
+     * 商品查找
+     * ============================================================
+     *
+     * 保留 stable-before-zxing 原本的前導 0 處理。
+     */
 
     private fun findItem(
         raw: String
@@ -1045,55 +1258,68 @@ class ScanActivity : AppCompatActivity() {
         val code =
             raw.trim()
 
-        // --------------------------------------------------------
-        // 1. 完全相同
-        // --------------------------------------------------------
+        /*
+         * 1. 完整比對
+         */
 
-        barcodeMap[code]?.let {
-            return it
-        }
-
-        // --------------------------------------------------------
-        // 2. 純數字條碼
-        // --------------------------------------------------------
-
-        if (code.matches(Regex("\\d+"))) {
-
-            // 12 位條碼前面補 0
-            if (code.length == 12) {
-
-                barcodeMap["0$code"]?.let {
-                    return it
-                }
+        barcodeMap[code]
+            ?.let {
+                return it
             }
 
-            // 去掉前導 0
+        if (
+            code.matches(
+                Regex("\\d+")
+            )
+        ) {
+
+            /*
+             * 2. 12 位條碼前面補 0
+             *
+             * 例如：
+             * 123456789012
+             * →
+             * 0123456789012
+             */
+
+            if (code.length == 12) {
+
+                barcodeMap["0$code"]
+                    ?.let {
+                        return it
+                    }
+            }
+
+            /*
+             * 3. 去除前導 0
+             */
+
             barcodeMap[
                 code
                     .trimStart('0')
                     .ifEmpty { "0" }
             ]?.let {
+
                 return it
             }
 
-            // 自編碼不足 6 位時補 0
+            /*
+             * 4. 自編碼補成 6 位
+             */
+
             barcodeMap[
                 code.padStart(
                     6,
                     '0'
                 )
             ]?.let {
+
                 return it
             }
         }
 
         return null
-    }
-
-    // ============================================================
-    // 一般點貨紀錄
-    // ============================================================
-
+    }   
     private fun recordItem(
         c: String,
         i: String,
@@ -1107,33 +1333,28 @@ class ScanActivity : AppCompatActivity() {
                 Locale.TAIWAN
             ).format(Date())
 
-        scannedRecords[c]
-            ?.apply {
+        scannedRecords[c]?.apply {
 
-                qty += q
+            qty += q
+            lastTime = t
 
-                lastTime = t
-            }
-            ?: run {
+        } ?: run {
 
-                scannedRecords[c] =
-                    ScanRecord(
-                        c,
-                        i,
-                        n,
-                        q,
-                        t
-                    )
-            }
+            scannedRecords[c] =
+                ScanRecord(
+                    c,
+                    i,
+                    n,
+                    q,
+                    t
+                )
+        }
 
         val r =
             scannedRecords[c]!!
 
         tvLastItem.text =
-            "最後點貨\n" +
-            "${r.name}\n" +
-            "自編碼：${r.customCode}　" +
-            "累計：${r.qty} 件"
+            "最後點貨\n${r.name}\n自編碼：${r.customCode}　累計：${r.qty} 件"
 
         refreshList()
     }
@@ -1141,8 +1362,7 @@ class ScanActivity : AppCompatActivity() {
     private fun refreshList() {
 
         val list =
-            scannedRecords
-                .values
+            scannedRecords.values
                 .sortedBy {
                     it.customCode
                 }
@@ -1150,15 +1370,16 @@ class ScanActivity : AppCompatActivity() {
         adapter.updateData(list)
 
         tvSummary.text =
-            "品項 ${list.size} 種　｜　" +
-            "總數 ${list.sumOf { it.qty }} 件"
+            "品項 ${list.size} 種　｜　總數 ${list.sumOf { it.qty }} 件"
     }
 
     private fun clearRecords() {
 
         AlertDialog.Builder(this)
 
-            .setTitle("清空點貨紀錄")
+            .setTitle(
+                "清空點貨紀錄"
+            )
 
             .setMessage(
                 "確定要清空目前所有點貨紀錄嗎？"
@@ -1191,9 +1412,11 @@ class ScanActivity : AppCompatActivity() {
             .show()
     }
 
-    // ============================================================
-    // 盤點模式
-    // ============================================================
+    /*
+     * ============================================================
+     * 盤點模式
+     * ============================================================
+     */
 
     private fun addInventoryItem(
         item: ItemInfo
@@ -1202,7 +1425,11 @@ class ScanActivity : AppCompatActivity() {
         val key =
             item.customCode
 
-        if (!inventoryRecords.containsKey(key)) {
+        if (
+            !inventoryRecords.containsKey(
+                key
+            )
+        ) {
 
             val now =
                 SimpleDateFormat(
@@ -1235,8 +1462,7 @@ class ScanActivity : AppCompatActivity() {
 
         inventoryContent.removeAllViews()
 
-        inventoryRecords
-            .values
+        inventoryRecords.values
             .forEachIndexed { index, record ->
 
                 val row =
@@ -1260,9 +1486,9 @@ class ScanActivity : AppCompatActivity() {
                         )
                     }
 
-                // ------------------------------------------------
-                // 刪除按鈕
-                // ------------------------------------------------
+                /*
+                 * 刪除按鈕
+                 */
 
                 val delete =
                     MaterialButton(this).apply {
@@ -1289,8 +1515,7 @@ class ScanActivity : AppCompatActivity() {
                         )
 
                         backgroundTintList =
-                            android.content.res
-                                .ColorStateList
+                            android.content.res.ColorStateList
                                 .valueOf(
                                     Color.rgb(
                                         220,
@@ -1312,9 +1537,9 @@ class ScanActivity : AppCompatActivity() {
                     renderInventoryList()
                 }
 
-                // ------------------------------------------------
-                // 自編碼
-                // ------------------------------------------------
+                /*
+                 * 自編碼
+                 */
 
                 val code =
                     TextView(this).apply {
@@ -1322,7 +1547,8 @@ class ScanActivity : AppCompatActivity() {
                         text =
                             record.customCode
 
-                        textSize = 16f
+                        textSize =
+                            16f
 
                         typeface =
                             Typeface.DEFAULT_BOLD
@@ -1339,9 +1565,9 @@ class ScanActivity : AppCompatActivity() {
                             Gravity.CENTER_VERTICAL
                     }
 
-                // ------------------------------------------------
-                // 商品名稱
-                // ------------------------------------------------
+                /*
+                 * 品名
+                 */
 
                 val name =
                     TextView(this).apply {
@@ -1349,7 +1575,8 @@ class ScanActivity : AppCompatActivity() {
                         text =
                             record.name
 
-                        textSize = 15f
+                        textSize =
+                            15f
 
                         setTextColor(
                             Color.rgb(
@@ -1365,15 +1592,19 @@ class ScanActivity : AppCompatActivity() {
                         maxLines = 3
                     }
 
-                // ------------------------------------------------
-                // 數量
-                // ------------------------------------------------
+                /*
+                 * 數量
+                 *
+                 * 新加入商品 qty = 0
+                 * → 顯示空白
+                 *
+                 * 使用者輸入數量後
+                 * → 顯示實際數字
+                 */
 
                 val qty =
                     EditText(this).apply {
 
-                        // 數量為 0 時畫面保持空白，
-                        // 避免使用者看到預設的 0。
                         setText(
                             if (record.qty == 0) {
                                 ""
@@ -1382,7 +1613,8 @@ class ScanActivity : AppCompatActivity() {
                             }
                         )
 
-                        textSize = 17f
+                        textSize =
+                            17f
 
                         setTextColor(
                             Color.rgb(
@@ -1410,6 +1642,10 @@ class ScanActivity : AppCompatActivity() {
                         )
                     }
 
+                /*
+                 * 離開數量欄位時儲存數量
+                 */
+
                 qty.setOnFocusChangeListener {
                         _,
                         hasFocus ->
@@ -1426,6 +1662,10 @@ class ScanActivity : AppCompatActivity() {
                         updateInventorySummary()
                     }
                 }
+
+                /*
+                 * 鍵盤完成時儲存數量
+                 */
 
                 qty.setOnEditorActionListener {
                         _,
@@ -1444,9 +1684,14 @@ class ScanActivity : AppCompatActivity() {
                     false
                 }
 
-                // ------------------------------------------------
-                // 加入 Row
-                // ------------------------------------------------
+                /*
+                 * 欄位排列
+                 *
+                 * [刪除]
+                 * [自編碼]
+                 * [品名]
+                 * [數量]
+                 */
 
                 row.addView(
                     delete,
@@ -1488,7 +1733,13 @@ class ScanActivity : AppCompatActivity() {
                     )
                 )
 
-                inventoryContent.addView(row)
+                inventoryContent.addView(
+                    row
+                )
+
+                /*
+                 * 分隔線
+                 */
 
                 if (
                     index <
@@ -1523,26 +1774,28 @@ class ScanActivity : AppCompatActivity() {
     private fun updateInventorySummary() {
 
         val total =
-            inventoryRecords
-                .values
+            inventoryRecords.values
                 .sumOf {
                     it.qty
                 }
 
         tvInventorySummary.text =
-            "已掃描 ${inventoryRecords.size} 項　｜　" +
-            "目前數量 $total"
+            "已掃描 ${inventoryRecords.size} 項　｜　目前數量 $total"
     }
 
     private fun clearInventory() {
 
-        if (inventoryRecords.isEmpty()) {
+        if (
+            inventoryRecords.isEmpty()
+        ) {
             return
         }
 
         AlertDialog.Builder(this)
 
-            .setTitle("清空盤點")
+            .setTitle(
+                "清空盤點"
+            )
 
             .setMessage(
                 "確定清空目前盤點清單？"
@@ -1565,34 +1818,62 @@ class ScanActivity : AppCompatActivity() {
             .show()
     }
 
-    // ============================================================
-    // 產生盤點 PDF
-    // ============================================================
+    /*
+     * ============================================================
+     * 盤點 PDF
+     * ============================================================
+     *
+     * A4：
+     *
+     * 595 x 842 pt
+     *
+     * 每頁：
+     * 18 列 × 2 欄
+     *
+     * = 36 筆
+     *
+     * 超過 36 筆自動下一頁。
+     *
+     * 不排序。
+     * 保留 LinkedHashMap 原始加入順序。
+     */
 
     private fun generateInventoryPdf() {
 
-        if (inventoryRecords.isEmpty()) {
+        if (
+            inventoryRecords.isEmpty()
+        ) {
 
             Toast.makeText(
                 this,
-              "目前沒有盤點品項",
+                "目前沒有盤點品項",
                 Toast.LENGTH_SHORT
             ).show()
 
             return
         }
 
-        // 產生前先讀取畫面上最新的數量。
+        /*
+         * 先讀取畫面上的最新數量，
+         * 確保使用者最後修改的值有保存。
+         */
+
         inventoryContent
             .childrenForEditTexts()
-            .forEach { (key, value) ->
+            .forEach {
+                (key, value) ->
 
                 inventoryRecords[key]?.qty =
                     value
             }
 
-        // LinkedHashMap：
-        // 保留使用者掃描／加入的原始順序。
+        /*
+         * LinkedHashMap.values
+         * 本身保持加入順序。
+         *
+         * 這裡不要 sortedBy。
+         */
+
         val records =
             inventoryRecords.values.toList()
 
@@ -1600,6 +1881,10 @@ class ScanActivity : AppCompatActivity() {
 
             val pdf =
                 PdfDocument()
+
+            /*
+             * A4 @ 72 DPI
+             */
 
             val pageWidth =
                 595f
@@ -1616,8 +1901,8 @@ class ScanActivity : AppCompatActivity() {
             val columnWidth =
                 (
                     pageWidth -
-                        margin * 2 -
-                        gap
+                    margin * 2 -
+                    gap
                 ) / 2f
 
             val rowHeight =
@@ -1628,15 +1913,20 @@ class ScanActivity : AppCompatActivity() {
 
             val usableHeight =
                 pageHeight -
-                    margin * 2 -
-                    titleHeight
+                margin * 2 -
+                titleHeight
+
+            /*
+             * A4：
+             * 約 18 列 × 2 欄
+             */
 
             val rowsPerColumn =
                 maxOf(
                     1,
                     (
                         usableHeight /
-                            rowHeight
+                        rowHeight
                     ).toInt()
                 )
 
@@ -1646,9 +1936,13 @@ class ScanActivity : AppCompatActivity() {
             val pageCount =
                 (
                     records.size +
-                        rowsPerPage -
-                        1
+                    rowsPerPage -
+                    1
                 ) / rowsPerPage
+
+            /*
+             * 標題
+             */
 
             val titlePaint =
                 Paint(
@@ -1665,6 +1959,10 @@ class ScanActivity : AppCompatActivity() {
                         Typeface.DEFAULT_BOLD
                 }
 
+            /*
+             * 表頭
+             */
+
             val headerPaint =
                 Paint(
                     Paint.ANTI_ALIAS_FLAG
@@ -1680,6 +1978,10 @@ class ScanActivity : AppCompatActivity() {
                         Typeface.DEFAULT_BOLD
                 }
 
+            /*
+             * 商品文字
+             */
+
             val textPaint =
                 Paint(
                     Paint.ANTI_ALIAS_FLAG
@@ -1691,6 +1993,10 @@ class ScanActivity : AppCompatActivity() {
                     textSize =
                         10f
                 }
+
+            /*
+             * 自編碼文字
+             */
 
             val codePaint =
                 Paint(
@@ -1707,6 +2013,10 @@ class ScanActivity : AppCompatActivity() {
                         Typeface.DEFAULT_BOLD
                 }
 
+            /*
+             * 分隔線
+             */
+
             val linePaint =
                 Paint(
                     Paint.ANTI_ALIAS_FLAG
@@ -1718,6 +2028,10 @@ class ScanActivity : AppCompatActivity() {
                     strokeWidth =
                         0.8f
                 }
+
+            /*
+             * 每一頁
+             */
 
             for (
                 pageIndex
@@ -1747,7 +2061,7 @@ class ScanActivity : AppCompatActivity() {
 
                 val start =
                     pageIndex *
-                        rowsPerPage
+                    rowsPerPage
 
                 val end =
                     minOf(
@@ -1761,11 +2075,18 @@ class ScanActivity : AppCompatActivity() {
                         end
                     )
 
-                for (column in 0..1) {
+                /*
+                 * 左右兩欄
+                 */
+
+                for (
+                    column
+                    in 0..1
+                ) {
 
                     val colStart =
                         column *
-                            rowsPerColumn
+                        rowsPerColumn
 
                     val colEnd =
                         minOf(
@@ -1774,20 +2095,31 @@ class ScanActivity : AppCompatActivity() {
                                 rowsPerColumn
                         )
 
-                    if (colStart >= colEnd) {
+                    if (
+                        colStart >= colEnd
+                    ) {
                         continue
                     }
 
                     val x =
                         margin +
-                            column *
-                            (
-                                columnWidth +
-                                    gap
-                            )
+                        column *
+                        (
+                            columnWidth +
+                            gap
+                        )
+
+                    /*
+                     * PDF 欄位：
+                     *
+                     * 條碼
+                     * 自編碼
+                     * 品名
+                     * 數量
+                     */
 
                     canvas.drawText(
-                        "自編碼",
+                        "條碼",
                         x,
                         margin +
                             titleHeight -
@@ -1796,8 +2128,17 @@ class ScanActivity : AppCompatActivity() {
                     )
 
                     canvas.drawText(
+                        "自編碼",
+                        x + 82f,
+                        margin +
+                            titleHeight -
+                            10f,
+                        headerPaint
+                    )
+
+                    canvas.drawText(
                         "品名",
-                        x + 118f,
+                        x + 170f,
                         margin +
                             titleHeight -
                             10f,
@@ -1821,14 +2162,22 @@ class ScanActivity : AppCompatActivity() {
                             colEnd
                         )
                         .forEachIndexed {
-                                rowIndex,
-                                record ->
+                            rowIndex,
+                            record ->
 
                             val y =
                                 margin +
-                                    titleHeight +
-                                    rowIndex *
-                                    rowHeight
+                                titleHeight +
+                                rowIndex *
+                                rowHeight
+
+                            /*
+                             * 以自編碼產生
+                             * Code 128 一維條碼。
+                             *
+                             * 不產生 QR。
+                             * 不產生 Data Matrix。
+                             */
 
                             drawCode128(
                                 canvas,
@@ -1839,22 +2188,34 @@ class ScanActivity : AppCompatActivity() {
                                 18f
                             )
 
+                            /*
+                             * 自編碼
+                             */
+
                             canvas.drawText(
                                 record.customCode,
-                                x,
-                                y + 29f,
+                                x + 82f,
+                                y + 20f,
                                 codePaint
                             )
+
+                            /*
+                             * 品名
+                             */
 
                             drawWrappedText(
                                 canvas,
                                 record.name,
-                                x + 118f,
+                                x + 170f,
                                 y + 17f,
-                                columnWidth - 158f,
+                                columnWidth - 210f,
                                 textPaint,
                                 2
                             )
+
+                            /*
+                             * 數量
+                             */
 
                             canvas.drawText(
                                 record.qty.toString(),
@@ -1864,6 +2225,10 @@ class ScanActivity : AppCompatActivity() {
                                 y + 20f,
                                 textPaint
                             )
+
+                            /*
+                             * 橫線
+                             */
 
                             canvas.drawLine(
                                 x,
@@ -1880,7 +2245,9 @@ class ScanActivity : AppCompatActivity() {
                         }
                 }
 
-                pdf.finishPage(page)
+                pdf.finishPage(
+                    page
+                )
             }
 
             val file =
@@ -1913,713 +2280,1765 @@ class ScanActivity : AppCompatActivity() {
             ).show()
         }
     }
-    private fun sharePdf(file: File) {
-        val uri = FileProvider.getUriForFile(
-            this,
-            "${BuildConfig.APPLICATION_ID}.fileprovider",
-            file
-        )
 
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "application/pdf"
-            putExtra(Intent.EXTRA_STREAM, uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    private fun sharePdf(
+        file: File
+    ) {
+
+        try {
+
+            val uri =
+                FileProvider.getUriForFile(
+                    this,
+                    "${packageName}.fileprovider",
+                    file
+                )
+
+            val intent =
+                Intent(
+                    Intent.ACTION_SEND
+                ).apply {
+
+                    type =
+                        "application/pdf"
+
+                    putExtra(
+                        Intent.EXTRA_STREAM,
+                        uri
+                    )
+
+                    putExtra(
+                        Intent.EXTRA_SUBJECT,
+                        "盤點表"
+                    )
+
+                    addFlags(
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                }
+
+            startActivity(
+                Intent.createChooser(
+                    intent,
+                    "分享盤點表"
+                )
+            )
+
+        } catch (e: Exception) {
+
+            e.printStackTrace()
+
+            Toast.makeText(
+                this,
+                "無法分享 PDF：${e.message}",
+                Toast.LENGTH_LONG
+            ).show()
         }
-
-        startActivity(Intent.createChooser(intent, "分享盤點 PDF"))
     }
 
-    // =========================
-    // 報表頁面
-    // =========================
+    /*
+     * ============================================================
+     * PDF 品名換行
+     * ============================================================
+     */
 
-    private fun showReportPage() {
-        layoutReportSection.visibility = View.VISIBLE
-        layoutInventorySection.visibility = View.GONE
-        layoutPointSection.visibility = View.GONE
-        layoutManualCode.visibility = View.GONE
+    private fun drawWrappedText(
+        canvas: Canvas,
+        text: String,
+        x: Float,
+        y: Float,
+        maxWidth: Float,
+        paint: Paint,
+        maxLines: Int
+    ) {
 
-        tvStatus.text = "盤點報表"
-        tvCount.text = "共 ${inventoryRecords.size} 筆"
+        var line =
+            ""
 
-        reportContainer.removeAllViews()
+        var lineIndex =
+            0
 
-        inventoryRecords.forEachIndexed { index, record ->
-            addReportRow(index + 1, record)
-        }
-    }
+        for (ch in text) {
 
-    private fun addReportRow(index: Int, record: InventoryRecord) {
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(6), dp(8), dp(6))
-            background = GradientDrawable().apply {
-                setColor(Color.WHITE)
-                cornerRadius = dp(8).toFloat()
-                setStroke(dp(1), Color.parseColor("#E0E0E0"))
+            val candidate =
+                line + ch
+
+            if (
+                paint.measureText(
+                    candidate
+                ) > maxWidth &&
+                line.isNotEmpty()
+            ) {
+
+                canvas.drawText(
+                    line,
+                    x,
+                    y +
+                        lineIndex *
+                        13f,
+                    paint
+                )
+
+                line =
+                    ch.toString()
+
+                lineIndex++
+
+                if (
+                    lineIndex >=
+                    maxLines
+                ) {
+                    break
+                }
+
+            } else {
+
+                line =
+                    candidate
             }
         }
 
-        val number = TextView(this).apply {
-            text = index.toString()
-            textSize = 14f
-            gravity = Gravity.CENTER
-            setTextColor(Color.DKGRAY)
+        if (
+            lineIndex <
+            maxLines
+        ) {
+
+            canvas.drawText(
+                line,
+                x,
+                y +
+                    lineIndex *
+                    13f,
+                paint
+            )
+        }
+    }
+
+    /*
+     * ============================================================
+     * Code 128-B
+     * ============================================================
+     *
+     * 盤點 PDF 的條碼由「自編碼」產生。
+     *
+     * 只產生一維 Code 128。
+     *
+     * 不產生：
+     * QR
+     * Data Matrix
+     * 其他二維碼
+     */
+
+    private fun drawCode128(
+        canvas: Canvas,
+        value: String,
+        x: Float,
+        y: Float,
+        width: Float,
+        height: Float
+    ) {
+
+        val digits =
+            value
+                .filter {
+                    it.isDigit()
+                }
+                .padStart(
+                    6,
+                    '0'
+                )
+                .takeLast(6)
+
+        val patterns =
+            arrayOf(
+                "212222",
+                "222122",
+                "222221",
+                "121223",
+                "121322",
+                "131222",
+                "122213",
+                "122312",
+                "132212",
+                "221213",
+                "221312",
+                "231212",
+                "112232",
+                "122132",
+                "122231",
+                "113222",
+                "123122",
+                "123221",
+                "223211",
+                "221132",
+                "221231",
+                "213212",
+                "223112",
+                "312131",
+                "311222",
+                "321122",
+                "321221",
+                "312212",
+                "322112",
+                "322211",
+                "212123",
+                "212321",
+                "232121",
+                "111323",
+                "131123",
+                "131321",
+                "112313",
+                "132113",
+                "132311",
+                "211313",
+                "231113",
+                "231311",
+                "112133",
+                "112331",
+                "132131",
+                "113123",
+                "113321",
+                "133121",
+                "313121",
+                "211331",
+                "231131",
+                "213113",
+                "213311",
+                "213131",
+                "311123",
+                "311321",
+                "331121",
+                "312113",
+                "312311",
+                "332111",
+                "314111",
+                "221411",
+                "431111",
+                "111224",
+                "111422",
+                "121124",
+                "121421",
+                "141122",
+                "141221",
+                "112214",
+                "112412",
+                "122114",
+                "122411",
+                "142112",
+                "142211",
+                "241211",
+                "221114",
+                "413111",
+                "241112",
+                "134111",
+                "111242",
+                "121142",
+                "121241",
+                "114212",
+                "124112",
+                "124211",
+                "411212",
+                "421112",
+                "421211",
+                "212141",
+                "214121",
+                "412121",
+                "111143",
+                "111341",
+                "131141",
+                "114113",
+                "114311",
+                "411113",
+                "411311",
+                "113141",
+                "114131",
+                "311141",
+                "411131",
+                "211412",
+                "211214",
+                "211232",
+                "2331112"
+            )
+
+        val codes =
+            mutableListOf<Int>()
+
+        /*
+         * Start Code B
+         */
+
+        codes.add(104)
+
+        /*
+         * 數字轉 Code 128-B
+         */
+
+        digits.forEach { ch ->
+
+            codes.add(
+                ch.code - 32
+            )
         }
 
-        val name = TextView(this).apply {
-            text = record.name.ifBlank { "未命名品項" }
-            textSize = 16f
-            setTextColor(Color.BLACK)
-            setPadding(dp(8), 0, dp(8), 0)
-            maxLines = 2
-            ellipsize = TextUtils.TruncateAt.END
+        /*
+         * Checksum
+         */
+
+        var checksum =
+            104
+
+        for (
+            i in 1 until codes.size
+        ) {
+
+            checksum +=
+                codes[i] * i
         }
 
-        val qty = TextView(this).apply {
-            text = record.qty.toString()
-            textSize = 16f
-            gravity = Gravity.CENTER
-            setTextColor(Color.parseColor("#1976D2"))
+        codes.add(
+            checksum % 103
+        )
+
+        /*
+         * Stop
+         */
+
+        codes.add(106)
+
+        /*
+         * 計算總 module 數
+         */
+
+        val modules =
+            codes.sumOf { code ->
+
+                patterns[code]
+                    .sumOf {
+                        it.digitToInt()
+                    }
+            }
+
+        val module =
+            width /
+                modules.toFloat()
+
+        var cursor =
+            x
+
+        /*
+         * 畫出黑白條
+         */
+
+        codes.forEach { code ->
+
+            val pattern =
+                patterns[code]
+
+            var black =
+                true
+
+            for (
+                digit in pattern
+            ) {
+
+                val w =
+                    digit.digitToInt() *
+                    module
+
+                if (black) {
+
+                    canvas.drawRect(
+                        cursor,
+                        y,
+                        cursor + w,
+                        y + height,
+                        Paint().apply {
+                            color =
+                                Color.BLACK
+                        }
+                    )
+                }
+
+                cursor +=
+                    w
+
+                black =
+                    !black
+            }
         }
+    }
+
+    /*
+     * ============================================================
+     * 從盤點畫面讀取所有數量
+     * ============================================================
+     */
+
+    private fun LinearLayout
+        .childrenForEditTexts():
+        List<Pair<String, Int>> {
+
+        val result =
+            mutableListOf<Pair<String, Int>>()
+
+        for (
+            i in 0 until childCount
+        ) {
+
+            val row =
+                getChildAt(i)
+                    as? LinearLayout
+                    ?: continue
+
+            val codeView =
+                row.getChildAt(1)
+                    as? TextView
+                    ?: continue
+
+            val qtyView =
+                row.getChildAt(3)
+                    as? EditText
+                    ?: continue
+
+            val key =
+                codeView.text
+                    .toString()
+
+            val value =
+                qtyView.text
+                    .toString()
+                    .toIntOrNull()
+                    ?.coerceAtLeast(0)
+                    ?: 0
+
+            if (
+                key.isNotEmpty()
+            ) {
+
+                result.add(
+                    key to value
+                )
+            }
+        }
+
+        return result
+    }   
+    /*
+     * ============================================================
+     * 點貨報表
+     * ============================================================
+     */
+
+    private fun showReportPage() {
+
+        if (scannedRecords.isEmpty()) {
+
+            Toast.makeText(
+                this,
+                "目前沒有點貨紀錄",
+                Toast.LENGTH_SHORT
+            ).show()
+
+            return
+        }
+
+        stopScanning()
+        stopCamera()
+
+        val list =
+            scannedRecords.values
+                .sortedBy {
+                    it.customCode
+                }
+
+        tvReportSummary.text =
+            "本次盤點　${list.size} 種商品　｜　${list.sumOf { it.qty }} 件"
+
+        tvReportContent.removeAllViews()
+
+        addReportRow(
+            "自編碼",
+            "品名",
+            "數量",
+            true
+        )
+
+        list.forEach {
+
+            addReportRow(
+                it.customCode,
+                it.name,
+                it.qty.toString(),
+                false
+            )
+        }
+
+        layoutScannerSection.visibility =
+            View.GONE
+
+        layoutInventorySection.visibility =
+            View.GONE
+
+        layoutReportSection.visibility =
+            View.VISIBLE
+    }
+
+    private fun addReportRow(
+        c: String,
+        n: String,
+        q: String,
+        header: Boolean
+    ) {
+
+        val row =
+            LinearLayout(this).apply {
+
+                orientation =
+                    LinearLayout.HORIZONTAL
+
+                gravity =
+                    Gravity.CENTER_VERTICAL
+
+                setPadding(
+                    dp(8),
+                    dp(8),
+                    dp(8),
+                    dp(8)
+                )
+
+                if (header) {
+
+                    setBackgroundColor(
+                        Color.rgb(
+                            232,
+                            240,
+                            254
+                        )
+                    )
+                }
+            }
+
+        val cv =
+            TextView(this).apply {
+
+                text =
+                    c
+
+                textSize =
+                    if (header) {
+                        16f
+                    } else {
+                        17f
+                    }
+
+                setTextColor(
+                    Color.DKGRAY
+                )
+
+                if (header) {
+
+                    setTypeface(
+                        null,
+                        Typeface.BOLD
+                    )
+                }
+
+                maxLines =
+                    1
+            }
+
+        val nv =
+            TextView(this).apply {
+
+                text =
+                    n
+
+                textSize =
+                    if (header) {
+                        16f
+                    } else {
+                        17f
+                    }
+
+                setTextColor(
+                    Color.DKGRAY
+                )
+
+                if (header) {
+
+                    setTypeface(
+                        null,
+                        Typeface.BOLD
+                    )
+                }
+
+                maxLines =
+                    5
+            }
+
+        val qv =
+            TextView(this).apply {
+
+                text =
+                    q
+
+                textSize =
+                    if (header) {
+                        16f
+                    } else {
+                        18f
+                    }
+
+                setTextColor(
+                    Color.rgb(
+                        20,
+                        80,
+                        160
+                    )
+                )
+
+                gravity =
+                    Gravity.CENTER
+
+                if (header) {
+
+                    setTypeface(
+                        null,
+                        Typeface.BOLD
+                    )
+                }
+            }
 
         row.addView(
-            number,
+            cv,
             LinearLayout.LayoutParams(
-                dp(40),
-                ViewGroup.LayoutParams.WRAP_CONTENT
+                dp(82),
+                -2
             )
         )
 
         row.addView(
-            name,
+            nv,
             LinearLayout.LayoutParams(
                 0,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
+                -2,
                 1f
             )
         )
 
         row.addView(
-            qty,
+            qv,
             LinearLayout.LayoutParams(
-                dp(60),
-                ViewGroup.LayoutParams.WRAP_CONTENT
+                dp(52),
+                -2
             )
         )
 
-        reportContainer.addView(
-            row,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                setMargins(0, 0, 0, dp(6))
-            }
+        tvReportContent.addView(
+            row
         )
-    }
 
-    // =========================
-    // 商品快取
-    // =========================
+        if (!header) {
 
-    private fun loadProductCache() {
-        barcodeMap.clear()
+            val divider =
+                View(this).apply {
 
-        try {
-            val prefs = getSharedPreferences(
-                "product_cache",
-                MODE_PRIVATE
-            )
-
-            val json = prefs.getString("items", null)
-
-            if (!json.isNullOrBlank()) {
-                val array = JSONArray(json)
-
-                for (i in 0 until array.length()) {
-                    val obj = array.optJSONObject(i) ?: continue
-
-                    val barcode = obj.optString("barcode").trim()
-                    val name = obj.optString("name").trim()
-
-                    if (barcode.isNotEmpty()) {
-                        barcodeMap[barcode] = ItemInfo(
-                            barcode = barcode,
-                            name = name
+                    setBackgroundColor(
+                        Color.rgb(
+                            225,
+                            225,
+                            225
                         )
-                    }
-                }
-            }
-        } catch (_: Exception) {
-        }
-    }
-
-    private fun saveProductCache() {
-        try {
-            val prefs = getSharedPreferences(
-                "product_cache",
-                MODE_PRIVATE
-            )
-
-            val array = JSONArray()
-
-            barcodeMap.values.forEach { item ->
-                val obj = JSONObject().apply {
-                    put("barcode", item.barcode)
-                    put("name", item.name)
+                    )
                 }
 
-                array.put(obj)
-            }
-
-            prefs.edit()
-                .putString("items", array.toString())
-                .apply()
-
-        } catch (_: Exception) {
-        }
-    }
-
-    // =========================
-    // Google Sheet / GAS
-    // =========================
-
-    private fun queryProductFromGas(
-        barcode: String,
-        callback: (ItemInfo?) -> Unit
-    ) {
-        val code = barcode.trim()
-
-        if (code.isEmpty()) {
-            callback(null)
-            return
-        }
-
-        val url = GAS_URL
-
-        if (url.isBlank()) {
-            callback(null)
-            return
-        }
-
-        val json = JSONObject().apply {
-            put("action", "query")
-            put("barcode", code)
-        }
-
-        val body = json.toString()
-            .toRequestBody(
-                "application/json; charset=utf-8".toMediaType()
-            )
-
-        val request = Request.Builder()
-            .url(url)
-            .post(body)
-            .build()
-
-        client.newCall(request).enqueue(
-            object : Callback {
-
-                override fun onFailure(
-                    call: Call,
-                    e: IOException
-                ) {
-                    runOnUiThread {
-                        callback(null)
-                    }
-                }
-
-                override fun onResponse(
-                    call: Call,
-                    response: Response
-                ) {
-                    response.use {
-                        try {
-                            val text = it.body?.string().orEmpty()
-
-                            if (text.isBlank()) {
-                                runOnUiThread {
-                                    callback(null)
-                                }
-                                return
-                            }
-
-                            val obj = JSONObject(text)
-
-                            val success = obj.optBoolean(
-                                "success",
-                                false
-                            )
-
-                            if (!success) {
-                                runOnUiThread {
-                                    callback(null)
-                                }
-                                return
-                            }
-
-                            val item = ItemInfo(
-                                barcode = obj.optString(
-                                    "barcode",
-                                    code
-                                ),
-                                name = obj.optString(
-                                    "name",
-                                    ""
-                                )
-                            )
-
-                            runOnUiThread {
-                                callback(item)
-                            }
-
-                        } catch (_: Exception) {
-                            runOnUiThread {
-                                callback(null)
-                            }
-                        }
-                    }
-                }
-            }
-        )
-    }
-
-    private fun uploadUnknownItem(
-        barcode: String,
-        name: String,
-        callback: (Boolean) -> Unit
-    ) {
-        val url = GAS_URL
-
-        if (url.isBlank()) {
-            callback(false)
-            return
-        }
-
-        val json = JSONObject().apply {
-            put("action", "add")
-            put("barcode", barcode)
-            put("name", name)
-        }
-
-        val body = json.toString()
-            .toRequestBody(
-                "application/json; charset=utf-8".toMediaType()
-            )
-
-        val request = Request.Builder()
-            .url(url)
-            .post(body)
-            .build()
-
-        client.newCall(request).enqueue(
-            object : Callback {
-
-                override fun onFailure(
-                    call: Call,
-                    e: IOException
-                ) {
-                    runOnUiThread {
-                        callback(false)
-                    }
-                }
-
-                override fun onResponse(
-                    call: Call,
-                    response: Response
-                ) {
-                    response.use {
-                        val success = try {
-                            val text = it.body?.string().orEmpty()
-
-                            if (text.isBlank()) {
-                                false
-                            } else {
-                                JSONObject(text)
-                                    .optBoolean(
-                                        "success",
-                                        false
-                                    )
-                            }
-                        } catch (_: Exception) {
-                            false
-                        }
-
-                        runOnUiThread {
-                            callback(success)
-                        }
-                    }
-                }
-            }
-        )
-    }
-
-    // =========================
-    // 建立新商品
-    // =========================
-
-    private fun showCreateItemDialog(
-        barcode: String
-    ) {
-        val input = EditText(this).apply {
-            hint = "請輸入品名"
-            setSingleLine(true)
-            setPadding(
-                dp(12),
-                dp(8),
-                dp(12),
-                dp(8)
-            )
-        }
-
-        val container = FrameLayout(this).apply {
-            setPadding(
-                dp(24),
-                dp(8),
-                dp(24),
-                0
-            )
-
-            addView(
-                input,
-                FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
+            tvReportContent.addView(
+                divider,
+                LinearLayout.LayoutParams(
+                    -1,
+                    dp(1)
                 )
             )
         }
+    }
 
-        AlertDialog.Builder(this)
-            .setTitle("建立新商品")
-            .setMessage("條碼：$barcode")
-            .setView(container)
-            .setNegativeButton("取消", null)
-            .setPositiveButton("建立", null)
-            .create()
-            .also { dialog ->
+    /*
+     * ============================================================
+     * 本機商品 Cache
+     * ============================================================
+     */
 
-                dialog.setOnShowListener {
-                    dialog.getButton(
-                        AlertDialog.BUTTON_POSITIVE
-                    ).setOnClickListener {
+    private fun cacheFile() =
+        File(
+            filesDir,
+            cacheFileName
+        )
 
-                        val name = input.text
-                            .toString()
-                            .trim()
+    private fun loadProductCache() {
 
-                        if (name.isEmpty()) {
-                            input.error = "請輸入品名"
-                            return@setOnClickListener
-                        }
+        Thread {
 
-                        val item = ItemInfo(
-                            barcode = barcode,
-                            name = name
+            try {
+
+                val f =
+                    cacheFile()
+
+                if (!f.exists()) {
+                    return@Thread
+                }
+
+                val arr =
+                    JSONArray(
+                        f.readText(
+                            Charsets.UTF_8
+                        )
+                    )
+
+                val map =
+                    mutableMapOf<String, ItemInfo>()
+
+                for (
+                    i in 0 until arr.length()
+                ) {
+
+                    val o =
+                        arr.getJSONObject(i)
+
+                    val c =
+                        o.optString(
+                            "customCode"
+                        ).trim()
+
+                    val intl =
+                        o.optString(
+                            "intlCode"
+                        ).trim()
+
+                    val n =
+                        o.optString(
+                            "name"
+                        ).trim()
+
+                    if (
+                        c.isEmpty() ||
+                        n.isEmpty()
+                    ) {
+                        continue
+                    }
+
+                    val info =
+                        ItemInfo(
+                            c,
+                            intl,
+                            n
                         )
 
-                        barcodeMap[barcode] = item
-                        saveProductCache()
+                    map[c] =
+                        info
 
-                        if (mode == Mode.POINT) {
-                            uploadUnknownItem(
-                                barcode,
-                                name
-                            ) {
-                                runOnUiThread {
-                                    addPointRecord(item)
-                                    dialog.dismiss()
-                                }
+                    map[
+                        c.trimStart('0')
+                            .ifEmpty {
+                                "0"
                             }
-                        } else {
-                            addInventoryRecord(item)
-                            dialog.dismiss()
-                        }
+                    ] =
+                        info
+
+                    if (
+                        intl.isNotEmpty()
+                    ) {
+
+                        map[intl] =
+                            info
                     }
                 }
 
-                dialog.show()
+                runOnUiThread {
+
+                    barcodeMap.clear()
+
+                    barcodeMap.putAll(
+                        map
+                    )
+
+                    tvDbStatus.text =
+                        "本機資料　✓ ${
+                            map.values
+                                .associateBy {
+                                    it.customCode
+                                }
+                                .size
+                        } 筆"
+
+                    tvStatus.text =
+                        "已使用上次資料，可直接掃描"
+                }
+
+            } catch (e: Exception) {
+
+                e.printStackTrace()
             }
+
+        }.start()
     }
 
-    // =========================
-    // CameraX
-    // =========================
+    private fun saveProductCache(
+        items: Collection<ItemInfo>
+    ) {
+
+        Thread {
+
+            try {
+
+                val arr =
+                    JSONArray()
+
+                items
+                    .associateBy {
+                        it.customCode
+                    }
+                    .values
+                    .forEach {
+
+                        arr.put(
+                            JSONObject().apply {
+
+                                put(
+                                    "customCode",
+                                    it.customCode
+                                )
+
+                                put(
+                                    "intlCode",
+                                    it.intlCode
+                                )
+
+                                put(
+                                    "name",
+                                    it.name
+                                )
+                            }
+                        )
+                    }
+
+                val tmp =
+                    File(
+                        filesDir,
+                        "$cacheFileName.tmp"
+                    )
+
+                tmp.writeText(
+                    arr.toString(),
+                    Charsets.UTF_8
+                )
+
+                val f =
+                    cacheFile()
+
+                if (f.exists()) {
+                    f.delete()
+                }
+
+                tmp.renameTo(f)
+
+            } catch (e: Exception) {
+
+                e.printStackTrace()
+            }
+
+        }.start()
+    }
+
+    /*
+     * ============================================================
+     * GAS 商品資料
+     * ============================================================
+     *
+     * 這裡維持原本 GAS 邏輯。
+     *
+     * 盤點模式本身不寫入 GAS。
+     * 只有點貨模式找不到商品時，
+     * 使用者建立新商品才會呼叫 postNewItemToCloud()。
+     */
+
+    private fun fetchCloudData(
+        force: Boolean = false
+    ) {
+
+        if (cloudLoading) {
+
+            if (force) {
+
+                Toast.makeText(
+                    this,
+                    "資料庫正在更新中，請稍候",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+
+            return
+        }
+
+        cloudLoading =
+            true
+
+        runOnUiThread {
+
+            btnRefreshDb.isEnabled =
+                false
+
+            tvDbStatus.text =
+                "雲端　更新中..."
+
+            tvStatus.text =
+                "正在讀取雲端商品資料..."
+        }
+
+        Thread {
+
+            var success =
+                false
+
+            for (
+                attempt in 1..MAX_RETRY
+            ) {
+
+                try {
+
+                    val req =
+                        Request.Builder()
+                            .url(
+                                GAS_WEB_APP_URL
+                            )
+                            .get()
+                            .header(
+                                "Cache-Control",
+                                "no-cache"
+                            )
+                            .build()
+
+                    client
+                        .newCall(req)
+                        .execute()
+                        .use { resp ->
+
+                            if (
+                                !resp.isSuccessful
+                            ) {
+
+                                throw Exception(
+                                    "HTTP ${resp.code}"
+                                )
+                            }
+
+                            val body =
+                                resp.body
+                                    ?.string()
+                                    ?.takeIf {
+                                        it.isNotBlank()
+                                    }
+                                    ?: throw Exception(
+                                        "GAS 回傳空白資料"
+                                    )
+
+                            val arr =
+                                JSONArray(
+                                    body
+                                )
+
+                            val map =
+                                mutableMapOf<
+                                    String,
+                                    ItemInfo
+                                >()
+
+                            val unique =
+                                linkedMapOf<
+                                    String,
+                                    ItemInfo
+                                >()
+
+                            for (
+                                i in 0 until arr.length()
+                            ) {
+
+                                val o =
+                                    arr.getJSONObject(
+                                        i
+                                    )
+
+                                val n =
+                                    o.optString(
+                                        "商品名稱"
+                                    ).trim()
+
+                                if (
+                                    n.isEmpty()
+                                ) {
+                                    continue
+                                }
+
+                                var c =
+                                    o.optString(
+                                        "自編碼"
+                                    ).trim()
+
+                                if (
+                                    c.endsWith(
+                                        ".0"
+                                    )
+                                ) {
+
+                                    c =
+                                        c.dropLast(2)
+                                }
+
+                                if (
+                                    c.matches(
+                                        Regex("\\d+")
+                                    )
+                                ) {
+
+                                    c =
+                                        c.padStart(
+                                            6,
+                                            '0'
+                                        )
+                                }
+
+                                var intl =
+                                    o.optString(
+                                        "國際條碼"
+                                    ).trim()
+
+                                if (
+                                    intl.equals(
+                                        "nan",
+                                        true
+                                    )
+                                ) {
+
+                                    intl =
+                                        ""
+                                }
+
+                                if (
+                                    c.isEmpty() ||
+                                    c.equals(
+                                        "nan",
+                                        true
+                                    )
+                                ) {
+                                    continue
+                                }
+
+                                val info =
+                                    ItemInfo(
+                                        c,
+                                        intl,
+                                        n
+                                    )
+
+                                unique[c] =
+                                    info
+
+                                map[c] =
+                                    info
+
+                                map[
+                                    c.trimStart('0')
+                                        .ifEmpty {
+                                            "0"
+                                        }
+                                ] =
+                                    info
+
+                                if (
+                                    intl.isNotEmpty()
+                                ) {
+
+                                    map[intl] =
+                                        info
+                                }
+                            }
+
+                            if (
+                                unique.isEmpty()
+                            ) {
+
+                                throw Exception(
+                                    "GAS 回傳 0 筆有效商品"
+                                )
+                            }
+
+                            barcodeMap.clear()
+
+                            barcodeMap.putAll(
+                                map
+                            )
+
+                            saveProductCache(
+                                unique.values
+                            )
+
+                            runOnUiThread {
+
+                                tvDbStatus.text =
+                                    "雲端　✓ ${unique.size} 筆"
+
+                                tvStatus.text =
+                                    "資料已更新，可開始掃描"
+
+                                btnRefreshDb.isEnabled =
+                                    true
+
+                                Toast.makeText(
+                                    this@ScanActivity,
+                                    "資料庫更新完成：${unique.size} 筆",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+
+                            success =
+                                true
+                        }
+
+                    if (success) {
+                        break
+                    }
+
+                } catch (e: Exception) {
+
+                    if (
+                        attempt <
+                        MAX_RETRY
+                    ) {
+
+                        try {
+
+                            Thread.sleep(
+                                if (
+                                    attempt == 1
+                                ) {
+                                    2000L
+                                } else {
+                                    4000L
+                                }
+                            )
+
+                        } catch (
+                            _: InterruptedException
+                        ) {
+                        }
+                    }
+                }
+            }
+
+            if (!success) {
+
+                runOnUiThread {
+
+                    btnRefreshDb.isEnabled =
+                        true
+
+                    if (
+                        barcodeMap.isNotEmpty()
+                    ) {
+
+                        val count =
+                            barcodeMap.values
+                                .associateBy {
+                                    it.customCode
+                                }
+                                .size
+
+                        tvDbStatus.text =
+                            "雲端更新失敗　｜　本機 $count 筆"
+
+                        tvStatus.text =
+                            "⚠ 雲端更新失敗，繼續使用上次資料"
+
+                        Toast.makeText(
+                            this,
+                            "雲端更新失敗，已使用上次資料",
+                            Toast.LENGTH_LONG
+                        ).show()
+
+                    } else {
+
+                        tvDbStatus.text =
+                            "雲端　載入失敗"
+
+                        tvStatus.text =
+                            "❌ 尚無商品資料，請按「更新資料庫」重試"
+                    }
+                }
+            }
+
+            cloudLoading =
+                false
+
+            runOnUiThread {
+
+                btnRefreshDb.isEnabled =
+                    true
+            }
+
+        }.start()
+    }
+
+    /*
+     * ============================================================
+     * 新商品 → GAS
+     * ============================================================
+     *
+     * 僅供「點貨模式」找不到商品時使用。
+     *
+     * 盤點模式不會呼叫這裡。
+     */
+
+    private fun postNewItemToCloud(
+        intl: String,
+        c: String,
+        n: String,
+        q: Int
+    ) {
+
+        tvStatus.text =
+            "正在同步雲端..."
+
+        Thread {
+
+            try {
+
+                val json =
+                    JSONObject().apply {
+
+                        put(
+                            "國際條碼",
+                            intl
+                        )
+
+                        put(
+                            "自編碼",
+                            c
+                        )
+
+                        put(
+                            "商品名稱",
+                            n
+                        )
+                    }
+
+                val body =
+                    json
+                        .toString()
+                        .toRequestBody(
+                            "application/json; charset=utf-8"
+                                .toMediaType()
+                        )
+
+                val req =
+                    Request.Builder()
+                        .url(
+                            GAS_WEB_APP_URL
+                        )
+                        .post(body)
+                        .build()
+
+                client
+                    .newCall(req)
+                    .execute()
+                    .use {
+
+                        if (
+                            !it.isSuccessful
+                        ) {
+
+                            throw Exception(
+                                "HTTP ${it.code}"
+                            )
+                        }
+                    }
+
+                val info =
+                    ItemInfo(
+                        c,
+                        intl,
+                        n
+                    )
+
+                barcodeMap[c] =
+                    info
+
+                barcodeMap[
+                    c.trimStart('0')
+                        .ifEmpty {
+                            "0"
+                        }
+                ] =
+                    info
+
+                if (
+                    intl.isNotEmpty()
+                ) {
+
+                    barcodeMap[intl] =
+                        info
+                }
+
+                saveProductCache(
+                    barcodeMap.values
+                )
+
+                runOnUiThread {
+
+                    playSuccessSound()
+
+                    recordItem(
+                        c,
+                        intl,
+                        n,
+                        q
+                    )
+
+                    tvStatus.text =
+                        "✓ 建檔並完成點貨"
+
+                    etQty.setText(
+                        "1"
+                    )
+                }
+
+            } catch (e: Exception) {
+
+                e.printStackTrace()
+
+                runOnUiThread {
+
+                    Toast.makeText(
+                        this,
+                        "同步雲端失敗，請檢查網路",
+                        Toast.LENGTH_LONG
+                    ).show()
+
+                    tvStatus.text =
+                        "同步失敗"
+                }
+            }
+
+        }.start()
+    }
+
+    /*
+     * ============================================================
+     * 建立新商品
+     * ============================================================
+     */
+
+    private fun showCreateItemDialog(
+        raw: String
+    ) {
+
+        val custom =
+            EditText(this).apply {
+
+                hint =
+                    "自編碼，例如：000123"
+
+                setText(
+                    if (
+                        raw.matches(
+                            Regex("\\d+")
+                        )
+                    ) {
+
+                        raw.padStart(
+                            6,
+                            '0'
+                        )
+
+                    } else {
+
+                        raw
+                    }
+                )
+            }
+
+        val name =
+            EditText(this).apply {
+
+                hint =
+                    "商品名稱"
+            }
+
+        val box =
+            LinearLayout(this).apply {
+
+                orientation =
+                    LinearLayout.VERTICAL
+
+                setPadding(
+                    dp(20),
+                    dp(8),
+                    dp(20),
+                    0
+                )
+
+                addView(
+                    custom
+                )
+
+                addView(
+                    name
+                )
+            }
+
+        AlertDialog.Builder(this)
+
+            .setTitle(
+                "找不到商品"
+            )
+
+            .setMessage(
+                "條碼：$raw\n請輸入自編碼與商品名稱"
+            )
+
+            .setView(
+                box
+            )
+
+            .setPositiveButton(
+                "建立並點貨"
+            ) { _, _ ->
+
+                var c =
+                    custom.text
+                        .toString()
+                        .trim()
+
+                val n =
+                    name.text
+                        .toString()
+                        .trim()
+
+                if (
+                    c.matches(
+                        Regex("\\d+")
+                    )
+                ) {
+
+                    c =
+                        c.padStart(
+                            6,
+                            '0'
+                        )
+                }
+
+                val q =
+                    etQty.text
+                        .toString()
+                        .toIntOrNull()
+                        ?.coerceAtLeast(1)
+                        ?: 1
+
+                if (
+                    c.isEmpty() ||
+                    n.isEmpty()
+                ) {
+
+                    Toast.makeText(
+                        this,
+                        "自編碼與商品名稱不能空白",
+                        Toast.LENGTH_LONG
+                    ).show()
+
+                    return@setPositiveButton
+                }
+
+                postNewItemToCloud(
+                    raw,
+                    c,
+                    n,
+                    q
+                )
+            }
+
+            .setNegativeButton(
+                "取消",
+                null
+            )
+
+            .show()
+    }
+
+    /*
+     * ============================================================
+     * CameraX
+     * ============================================================
+     */
 
     private fun startCamera() {
-        val cameraProviderFuture =
-            ProcessCameraProvider.getInstance(this)
 
-        cameraProviderFuture.addListener(
-            {
-                try {
-                    cameraProvider = cameraProviderFuture.get()
+        if (
+            !hasCameraPermission()
+        ) {
+            return
+        }
 
-                    val preview = Preview.Builder()
+        val future =
+            ProcessCameraProvider
+                .getInstance(this)
+
+        future.addListener({
+
+            try {
+
+                val provider =
+                    future.get()
+
+                cameraProvider =
+                    provider
+
+                val targetPreview =
+                    if (
+                        mode ==
+                        Mode.INVENTORY
+                    ) {
+
+                        inventoryPreviewView
+
+                    } else {
+
+                        previewView
+                    }
+
+                val preview =
+                    Preview.Builder()
                         .build()
-                        .also {
-                            it.setSurfaceProvider(
-                                previewView.surfaceProvider
-                            )
-                        }
 
-                    imageAnalysis = ImageAnalysis.Builder()
+                preview.setSurfaceProvider(
+                    targetPreview.surfaceProvider
+                )
+
+                imageAnalysis =
+                    ImageAnalysis.Builder()
                         .setBackpressureStrategy(
-                            ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST
+                            ImageAnalysis
+                                .STRATEGY_KEEP_ONLY_LATEST
                         )
                         .build()
 
-                    val cameraSelector =
-                        CameraSelector.DEFAULT_BACK_CAMERA
+                provider.unbindAll()
 
-                    cameraProvider?.unbindAll()
-
-                    cameraProvider?.bindToLifecycle(
+                camera =
+                    provider.bindToLifecycle(
                         this,
-                        cameraSelector,
+                        CameraSelector.DEFAULT_BACK_CAMERA,
                         preview,
                         imageAnalysis
                     )
 
-                } catch (e: Exception) {
-                    tvStatus.text =
-                        "相機啟動失敗：${e.message}"
-                }
-            },
-            ContextCompat.getMainExecutor(this)
-        )
-    }
+                tvStatus.text =
+                    if (
+                        mode ==
+                        Mode.INVENTORY
+                    ) {
 
-    private fun startInventoryCamera() {
-        val cameraProviderFuture =
-            ProcessCameraProvider.getInstance(this)
+                        "盤點模式：請按「掃描」"
 
-        cameraProviderFuture.addListener(
-            {
-                try {
-                    cameraProvider = cameraProviderFuture.get()
+                    } else {
 
-                    val preview = Preview.Builder()
-                        .build()
-                        .also {
-                            it.setSurfaceProvider(
-                                previewView.surfaceProvider
-                            )
-                        }
+                        "相機已準備完成，請按「開始掃描」"
+                    }
 
-                    imageAnalysis = ImageAnalysis.Builder()
-                        .setBackpressureStrategy(
-                            ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST
-                        )
-                        .build()
+            } catch (e: Exception) {
 
-                    val cameraSelector =
-                        CameraSelector.DEFAULT_BACK_CAMERA
+                e.printStackTrace()
 
-                    cameraProvider?.unbindAll()
+                tvStatus.text =
+                    "相機啟動失敗"
+            }
 
-                    cameraProvider?.bindToLifecycle(
-                        this,
-                        cameraSelector,
-                        preview,
-                        imageAnalysis
-                    )
-
-                    tvStatus.text =
-                        "盤點：請將一維條碼對準掃描框"
-
-                } catch (e: Exception) {
-                    tvStatus.text =
-                        "相機啟動失敗：${e.message}"
-                }
-            },
-            ContextCompat.getMainExecutor(this)
-        )
+        }, ContextCompat.getMainExecutor(this))
     }
 
     private fun stopCamera() {
+
         try {
-            cameraProvider?.unbindAll()
+
+            imageAnalysis
+                ?.clearAnalyzer()
+
         } catch (_: Exception) {
         }
 
-        imageAnalysis?.clearAnalyzer()
-        imageAnalysis = null
-        cameraProvider = null
+        try {
+
+            cameraProvider
+                ?.unbindAll()
+
+        } catch (_: Exception) {
+        }
+
+        camera =
+            null
+
+        imageAnalysis =
+            null
+
+        isScanning =
+            false
+
+        isProcessingFrame =
+            false
     }
 
-    // =========================
-    // 相機權限
-    // =========================
+    /*
+     * ============================================================
+     * Camera Permission
+     * ============================================================
+     */
 
-    private fun checkCameraPermission() {
+    private fun hasCameraPermission() =
+        ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.CAMERA
+        ) ==
+            PackageManager.PERMISSION_GRANTED
+
+    override fun onRequestPermissionsResult(
+        rc: Int,
+        p: Array<out String>,
+        r: IntArray
+    ) {
+
+        super.onRequestPermissionsResult(
+            rc,
+            p,
+            r
+        )
+
         if (
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.CAMERA
-            ) != PackageManager.PERMISSION_GRANTED
+            rc ==
+            REQUEST_CAMERA &&
+            r.isNotEmpty() &&
+            r[0] ==
+            PackageManager.PERMISSION_GRANTED
         ) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.CAMERA),
-                CAMERA_PERMISSION_REQUEST
-            )
-        } else {
+
             startCamera()
         }
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(
-            requestCode,
-            permissions,
-            grantResults
-        )
+    /*
+     * ============================================================
+     * DP
+     * ============================================================
+     */
 
-        if (requestCode == CAMERA_PERMISSION_REQUEST) {
-            if (
-                grantResults.isNotEmpty() &&
-                grantResults[0] ==
-                PackageManager.PERMISSION_GRANTED
-            ) {
-                startCamera()
-            } else {
-                tvStatus.text = "需要相機權限才能掃描條碼"
-            }
-        }
-    }
+    private fun dp(
+        v: Int
+    ) =
+        (
+            v *
+            resources.displayMetrics.density
+        ).toInt()
 
-    // =========================
-    // UI 工具
-    // =========================
+    /*
+     * ============================================================
+     * 返回鍵
+     * ============================================================
+     */
 
-    private fun dp(value: Int): Int {
-        return (
-            value *
-                resources.displayMetrics.density
-            ).roundToInt()
-    }
-
-    private fun childrenForEditTexts(
-        view: ViewGroup
-    ): List<EditText> {
-        val result = mutableListOf<EditText>()
-
-        for (i in 0 until view.childCount) {
-            val child = view.getChildAt(i)
-
-            when (child) {
-                is EditText -> {
-                    result.add(child)
-                }
-
-                is ViewGroup -> {
-                    result.addAll(
-                        childrenForEditTexts(child)
-                    )
-                }
-            }
-        }
-
-        return result
-    }
-
-    // =========================
-    // 返回鍵
-    // =========================
-
+    @Suppress("DEPRECATION")
     override fun onBackPressed() {
+
         when {
-            layoutReportSection.visibility == View.VISIBLE -> {
-                layoutReportSection.visibility = View.GONE
 
-                when (mode) {
-                    Mode.POINT -> {
-                        layoutPointSection.visibility = View.VISIBLE
-                        layoutInventorySection.visibility = View.GONE
-                    }
+            layoutReportSection.visibility ==
+                View.VISIBLE -> {
 
-                    Mode.INVENTORY -> {
-                        layoutInventorySection.visibility = View.VISIBLE
-                        layoutPointSection.visibility = View.GONE
-                    }
-                }
-
-                startCamera()
+                showPointMode()
             }
 
-            layoutManualCode.visibility == View.VISIBLE -> {
-                layoutManualCode.visibility = View.GONE
-                startCamera()
+            layoutInventorySection.visibility ==
+                View.VISIBLE -> {
+
+                showPointMode()
             }
 
             else -> {
+
                 super.onBackPressed()
             }
         }
     }
 
-    // =========================
-    // 生命週期
-    // =========================
-
-    override fun onPause() {
-        super.onPause()
-
-        if (isScanning) {
-            stopScanning()
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-
-        if (
-            layoutReportSection.visibility != View.VISIBLE &&
-            !isFinishing
-        ) {
-            if (
-                ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.CAMERA
-                ) == PackageManager.PERMISSION_GRANTED
-            ) {
-                startCamera()
-            }
-        }
-    }
+    /*
+     * ============================================================
+     * Activity 結束
+     * ============================================================
+     */
 
     override fun onDestroy() {
+
+        /*
+         * 先停止 CameraX
+         */
+
         stopScanning()
+
         stopCamera()
 
+        /*
+         * 關閉 ML Kit
+         */
+
         try {
+
             barcodeScanner?.close()
+
         } catch (_: Exception) {
         }
 
+        /*
+         * 關閉聲音播放器
+         */
+
         try {
+
             successPlayer?.release()
+
         } catch (_: Exception) {
         }
 
         try {
+
             failPlayer?.release()
+
         } catch (_: Exception) {
         }
+
+        /*
+         * 取消網路請求
+         */
+
+        client
+            .dispatcher
+            .cancelAll()
+
+        /*
+         * 關閉 ZXing-C++ 掃描執行緒
+         */
 
         try {
+
             scanExecutor.shutdownNow()
+
         } catch (_: Exception) {
         }
-
-        client.dispatcher.cancelAll()
 
         super.onDestroy()
     }
-}    
+}        

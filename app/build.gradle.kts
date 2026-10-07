@@ -37,17 +37,6 @@ android {
     }
 }
 
-configurations.all {
-    resolutionStrategy.eachDependency {
-        if (requested.group == "androidx.camera") {
-            useVersion("1.3.4")
-            because(
-                "Keep CameraX compatible with AGP 8.2.0 and compileSdk 34"
-            )
-        }
-    }
-}
-
 dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
@@ -56,25 +45,14 @@ dependencies {
 
     val camerax_version = "1.3.4"
 
-    implementation(
-        "androidx.camera:camera-camera2:$camerax_version"
-    )
-    implementation(
-        "androidx.camera:camera-lifecycle:$camerax_version"
-    )
-    implementation(
-        "androidx.camera:camera-view:$camerax_version"
-    )
+    implementation("androidx.camera:camera-camera2:$camerax_version")
+    implementation("androidx.camera:camera-lifecycle:$camerax_version")
+    implementation("androidx.camera:camera-view:$camerax_version")
 
-    implementation(
-        "com.google.mlkit:barcode-scanning:17.3.0"
-    )
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
 
-    implementation(
-        "com.squareup.okhttp3:okhttp:4.12.0"
-    )
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
-    implementation(
-        "io.github.zxing-cpp:android:3.1.1"
-    )
+    // ZXing-C++：DataBar / GS1 DataBar 補掃
+    implementation("io.github.zxing-cpp:android:2.3.0")
 }

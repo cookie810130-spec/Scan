@@ -210,7 +210,7 @@
                 android:layout_marginStart="10dp"
                 android:background="@drawable/bg_qty"
                 android:gravity="center"
-                android:inputType="number"
+                android:inputType="numberSigned"
                 android:text="1"
                 android:textColor="#0369A1"
                 android:textSize="18sp"

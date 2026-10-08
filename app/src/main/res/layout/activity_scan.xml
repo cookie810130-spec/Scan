@@ -83,6 +83,22 @@
                 android:textStyle="bold"
                 app:backgroundTint="#BAE6FD"
                 app:cornerRadius="8dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnZoom"
+                android:layout_width="52dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="5dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:text="縮放"
+                android:textColor="#075985"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                app:backgroundTint="#BAE6FD"
+                app:cornerRadius="8dp" />
         </LinearLayout>
 
         <com.google.android.material.card.MaterialCardView

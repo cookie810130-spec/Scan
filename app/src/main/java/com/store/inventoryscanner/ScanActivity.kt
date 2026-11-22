@@ -2079,7 +2079,7 @@ class ScanActivity : AppCompatActivity() {
                 ) / 2f
 
             val rowHeight =
-                40f
+                36f
 
             val titleHeight =
                 52f
@@ -2095,13 +2095,7 @@ class ScanActivity : AppCompatActivity() {
              */
 
             val rowsPerColumn =
-                maxOf(
-                    1,
-                    (
-                        usableHeight /
-                        rowHeight
-                    ).toInt()
-                )
+                20
 
             val rowsPerPage =
                 rowsPerColumn * 2
@@ -2164,7 +2158,7 @@ class ScanActivity : AppCompatActivity() {
                         Color.BLACK
 
                     textSize =
-                        10f
+                        9.5f
                 }
 
             /*
@@ -2291,128 +2285,78 @@ class ScanActivity : AppCompatActivity() {
                      * 數量
                      */
 
+                    val barcodeWidth = 80f
+                    val barcodeX = x + 2f
+                    val nameOffset = 92f
+                    val nameWidth = columnWidth - nameOffset - 38f
+
                     canvas.drawText(
-                        "條碼",
+                        "條碼/自編碼",
                         x,
-                        margin +
-                            titleHeight -
-                            10f,
+                        margin + titleHeight - 10f,
                         headerPaint
                     )
-
-                    canvas.drawText(
-                        "自編碼",
-                        x + 82f,
-                        margin +
-                            titleHeight -
-                            10f,
-                        headerPaint
-                    )
-
                     canvas.drawText(
                         "品名",
-                        x + 170f,
-                        margin +
-                            titleHeight -
-                            10f,
+                        x + nameOffset,
+                        margin + titleHeight - 10f,
                         headerPaint
                     )
-
                     canvas.drawText(
                         "數量",
-                        x +
-                            columnWidth -
-                            30f,
-                        margin +
-                            titleHeight -
-                            10f,
+                        x + columnWidth - 30f,
+                        margin + titleHeight - 10f,
                         headerPaint
                     )
 
                     pageRecords
-                        .subList(
-                            colStart,
-                            colEnd
-                        )
-                        .forEachIndexed {
-                            rowIndex,
-                            record ->
+                        .subList(colStart, colEnd)
+                        .forEachIndexed { rowIndex, record ->
+                            val y = margin + titleHeight + rowIndex * rowHeight
 
-                            val y =
-                                margin +
-                                titleHeight +
-                                rowIndex *
-                                rowHeight
-
-                            /*
-                             * 以自編碼產生
-                             * Code 128 一維條碼。
-                             *
-                             * 不產生 QR。
-                             * 不產生 Data Matrix。
-                             */
-
+                            // Code 128 編碼維持不變，六碼 HRI 置中於條碼下方。
                             drawCode128(
                                 canvas,
                                 record.customCode,
-                                x,
-                                y + 4f,
-                                80f,
-                                18f
+                                barcodeX,
+                                y + 2f,
+                                barcodeWidth,
+                                17f
                             )
-
-                            /*
-                             * 自編碼
-                             */
-
+                            val digits = record.customCode
+                                .filter { it.isDigit() }
+                                .padStart(6, '0')
+                                .takeLast(6)
                             canvas.drawText(
-                                record.customCode,
-                                x + 82f,
-                                y + 20f,
+                                digits,
+                                barcodeX + (barcodeWidth - codePaint.measureText(digits)) / 2f,
+                                y + 30f,
                                 codePaint
                             )
-
-                            /*
-                             * 品名
-                             */
 
                             drawWrappedText(
                                 canvas,
                                 record.name,
-                                x + 170f,
-                                y + 17f,
-                                columnWidth - 210f,
+                                x + nameOffset,
+                                y + 10f,
+                                nameWidth,
                                 textPaint,
-                                2
+                                3,
+                                10.5f
                             )
 
-                            /*
-                             * 數量
-                             */
-
+                            val qtyText = record.qty.toString()
                             canvas.drawText(
-                                record.qty.toString(),
-                                x +
-                                    columnWidth -
-                                    26f,
-                                y + 20f,
+                                qtyText,
+                                x + columnWidth - 5f - textPaint.measureText(qtyText),
+                                y + 19f,
                                 textPaint
                             )
-
-                            /*
-                             * 橫線
-                             */
-
                             canvas.drawLine(
                                 x,
-                                y +
-                                    rowHeight -
-                                    5f,
-                                x +
-                                    columnWidth,
-                                y +
-                                    rowHeight -
-                                    5f,
+                                y + rowHeight - 2f,
+                                x + columnWidth,
+                                y + rowHeight - 2f,
                                 linePaint
                             )
                         }
@@ -2522,68 +2466,33 @@ class ScanActivity : AppCompatActivity() {
         y: Float,
         maxWidth: Float,
         paint: Paint,
-        maxLines: Int
+        maxLines: Int,
+        lineHeight: Float = 13f
     ) {
+        if (text.isBlank() || maxWidth <= 0f || maxLines <= 0) return
 
-        var line =
-            ""
-
-        var lineIndex =
-            0
-
-        for (ch in text) {
-
-            val candidate =
-                line + ch
-
-            if (
-                paint.measureText(
-                    candidate
-                ) > maxWidth &&
-                line.isNotEmpty()
-            ) {
-
-                canvas.drawText(
-                    line,
-                    x,
-                    y +
-                        lineIndex *
-                        13f,
-                    paint
-                )
-
-                line =
-                    ch.toString()
-
-                lineIndex++
-
-                if (
-                    lineIndex >=
-                    maxLines
-                ) {
-                    break
-                }
-
+        val lines = mutableListOf<String>()
+        var line = ""
+        for (ch in text.replace("\r", " ").replace("\n", " ").trim()) {
+            val candidate = line + ch
+            if (paint.measureText(candidate) > maxWidth && line.isNotEmpty()) {
+                lines.add(line)
+                line = ch.toString()
             } else {
-
-                line =
-                    candidate
+                line = candidate
             }
         }
+        if (line.isNotEmpty()) lines.add(line)
 
-        if (
-            lineIndex <
-            maxLines
-        ) {
-
-            canvas.drawText(
-                line,
-                x,
-                y +
-                    lineIndex *
-                    13f,
-                paint
-            )
+        for (index in 0 until minOf(maxLines, lines.size)) {
+            var visibleLine = lines[index]
+            if (index == maxLines - 1 && lines.size > maxLines) {
+                while (visibleLine.isNotEmpty() && paint.measureText(visibleLine + "…") > maxWidth) {
+                    visibleLine = visibleLine.dropLast(1)
+                }
+                visibleLine += "…"
+            }
+            canvas.drawText(visibleLine, x, y + index * lineHeight, paint)
         }
     }
 

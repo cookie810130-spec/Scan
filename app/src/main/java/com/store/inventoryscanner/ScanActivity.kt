@@ -596,10 +596,10 @@ class ScanActivity : AppCompatActivity() {
             val margin = 28f
             val gap = 14f
             val columnWidth = (pageWidth - margin * 2 - gap) / 2f
-            val rowHeight = 40f
+            // A4 雙欄：每欄固定 20 筆，每頁共 40 筆。
+            val rowHeight = 36f
             val titleHeight = 52f
-            val usableHeight = pageHeight - margin * 2 - titleHeight
-            val rowsPerColumn = maxOf(1, (usableHeight / rowHeight).toInt())
+            val rowsPerColumn = 20
             val rowsPerPage = rowsPerColumn * 2
             val pageCount = (records.size + rowsPerPage - 1) / rowsPerPage
 
@@ -615,7 +615,7 @@ class ScanActivity : AppCompatActivity() {
             }
             val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.BLACK
-                textSize = 10f
+                textSize = 9.5f
             }
             val codePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.BLACK
@@ -644,30 +644,47 @@ class ScanActivity : AppCompatActivity() {
                     if (colStart >= colEnd) continue
                     val x = margin + column * (columnWidth + gap)
 
-                    canvas.drawText("自編碼", x, margin + titleHeight - 10f, headerPaint)
-                    canvas.drawText("品名", x + 118f, margin + titleHeight - 10f, headerPaint)
+                    val barcodeWidth = 80f
+                    val barcodeX = x + 2f
+                    val nameOffset = 92f  // 條碼後預留 10 pt 空白
+                    val nameWidth = columnWidth - nameOffset - 38f // 保留右側數量欄
+
+                    canvas.drawText("條碼/自編碼", x, margin + titleHeight - 10f, headerPaint)
+                    canvas.drawText("品名", x + nameOffset, margin + titleHeight - 10f, headerPaint)
                     canvas.drawText("數量", x + columnWidth - 30f, margin + titleHeight - 10f, headerPaint)
 
                     pageRecords.subList(colStart, colEnd).forEachIndexed { rowIndex, record ->
                         val y = margin + titleHeight + rowIndex * rowHeight
-                        drawCode128(canvas, record.customCode, x, y + 4f, 80f, 18f)
-                        canvas.drawText(record.customCode, x, y + 29f, codePaint)
+
+                        // Code 128 保持相同編碼；六碼 HRI 置中顯示在條碼正下方。
+                        drawCode128(canvas, record.customCode, barcodeX, y + 2f, barcodeWidth, 17f)
+                        val digits = record.customCode.filter { it.isDigit() }.padStart(6, '0').takeLast(6)
+                        canvas.drawText(
+                            digits,
+                            barcodeX + (barcodeWidth - codePaint.measureText(digits)) / 2f,
+                            y + 30f,
+                            codePaint
+                        )
+
+                        // 品名靠左、利用縮小的空白顯示最多三行。
                         drawWrappedText(
                             canvas,
                             record.name,
-                            x + 118f,
-                            y + 17f,
-                            columnWidth - 158f,
+                            x + nameOffset,
+                            y + 10f,
+                            nameWidth,
                             textPaint,
-                            2
+                            3,
+                            10.5f
                         )
+                        val qtyText = record.qty.toString()
                         canvas.drawText(
-                            record.qty.toString(),
-                            x + columnWidth - 26f,
-                            y + 20f,
+                            qtyText,
+                            x + columnWidth - 5f - textPaint.measureText(qtyText),
+                            y + 19f,
                             textPaint
                         )
-                        canvas.drawLine(x, y + rowHeight - 5f, x + columnWidth, y + rowHeight - 5f, linePaint)
+                        canvas.drawLine(x, y + rowHeight - 2f, x + columnWidth, y + rowHeight - 2f, linePaint)
                     }
                 }
                 pdf.finishPage(page)
@@ -711,22 +728,35 @@ class ScanActivity : AppCompatActivity() {
         y: Float,
         maxWidth: Float,
         paint: Paint,
-        maxLines: Int
+        maxLines: Int,
+        lineHeight: Float = 13f
     ) {
+        if (text.isBlank() || maxWidth <= 0f || maxLines <= 0) return
+
+        val lines = mutableListOf<String>()
         var line = ""
-        var lineIndex = 0
-        for (ch in text) {
+        for (ch in text.replace("\r", " ").replace("\n", " ").trim()) {
             val candidate = line + ch
             if (paint.measureText(candidate) > maxWidth && line.isNotEmpty()) {
-                canvas.drawText(line, x, y + lineIndex * 13f, paint)
+                lines.add(line)
                 line = ch.toString()
-                lineIndex++
-                if (lineIndex >= maxLines) break
             } else {
                 line = candidate
             }
         }
-        if (lineIndex < maxLines) canvas.drawText(line, x, y + lineIndex * 13f, paint)
+        if (line.isNotEmpty()) lines.add(line)
+
+        for (index in 0 until minOf(maxLines, lines.size)) {
+            var visibleLine = lines[index]
+            if (index == maxLines - 1 && lines.size > maxLines) {
+                // 極長品名才使用省略號，不讓文字蓋到下一筆。
+                while (visibleLine.isNotEmpty() && paint.measureText(visibleLine + "…") > maxWidth) {
+                    visibleLine = visibleLine.dropLast(1)
+                }
+                visibleLine += "…"
+            }
+            canvas.drawText(visibleLine, x, y + index * lineHeight, paint)
+        }
     }
 
     // Code 128-B：盤點表只產生一維 Barcode，不產生 QR / Data Matrix。

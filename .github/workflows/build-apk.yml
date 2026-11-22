@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - 'Plan-z-final2'
+      - 'fix/plan-z-final2-pdf-40-hri'
 
   pull_request:
     branches:
